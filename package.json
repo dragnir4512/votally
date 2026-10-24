@@ -1,0 +1,14 @@
+{
+  "name": "votally",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VOTALLY — plateforme SaaS de concours de vote (Bloc 1 : base de données)",
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:migrate": "node scripts/migrate.js up",
+    "db:status": "node scripts/migrate.js status",
+    "db:test": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/tests/invariants.sql"
+  },
+  "dependencies": { "pg": "^8.11.0" },
+  "engines": { "node": ">=18" }
+}

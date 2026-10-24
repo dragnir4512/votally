@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: votally
+      POSTGRES_PASSWORD: votally
+      POSTGRES_DB: votally
+    ports: ["5432:5432"]
+    volumes: ["votally_pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U votally"]
+      interval: 5s
+      retries: 10
+volumes:
+  votally_pg:
