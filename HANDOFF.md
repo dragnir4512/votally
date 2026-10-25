@@ -1,71 +1,63 @@
-# VOTALLY — Passation (état au 24 octobre 2026)
+# VOTALLY — Passation (état au 25 octobre 2026)
 
-## État d'avancement
-- **Bloc 1 terminé : base de données PostgreSQL** (7 migrations, runner, tests d'intégrité — tous verts sur PostgreSQL 16).
-- **À faire — Bloc 2 : API** (Node.js + TypeScript + Express) : auth, concours, candidats, vote.
-- **À faire — Bloc 3 : page de vote publique** (Next.js, mobile-first, FR/EN).
-- Les paiements réels (Phase 3 du cahier des charges) dépendent de l'ouverture d'un compte chez un agrégateur : **démarche à lancer dès maintenant**.
+## Avancement
+| Bloc | Contenu | État |
+|---|---|---|
+| 1 | Base PostgreSQL : 8 migrations, runner, tests d'intégrité | ✅ terminé |
+| 2 | **API Node.js + TypeScript** (auth, concours, candidats, vote gratuit / payant, webhooks, tableau de bord) | ✅ terminé (agrégateur **factice**) |
+| 2b | Agrégateur réel, SMS/email réels, KYC + retraits (API), administration, upload d'images | ⏳ à faire |
+| 3 | Page de vote publique (Next.js, mobile-first, FR/EN) | ⏳ à faire |
 
-## Démarrer
+## Mise à jour depuis le Bloc 1
+Extraire le zip PAR-DESSUS ton dépôt (il ne contient ni `.env` ni `node_modules`). Nouveautés : dossier `api/`, migration `008`, `.env.example`, ce fichier.
 ```bash
-cp .env.example .env            # puis adapter
-docker compose up -d db         # PostgreSQL 16
-npm install
-export DATABASE_URL=postgres://votally:votally@localhost:5432/votally
-npm run db:migrate              # applique db/migrations/*.sql (idempotent, checksums)
-npm run db:test                 # 60+ contrôles d'intégrité, annulés à la fin (ROLLBACK)
+cp .env.example .env            # puis renseigner JWT_SECRET et PHONE_HASH_PEPPER (longues chaînes aléatoires)
+npm run db:migrate              # applique 008 (les migrations 001-007 déjà appliquées sont ignorées)
+npm run api:install             # installe les dépendances de l'API
+npm run api:dev                 # API sur http://localhost:3000   (Node >= 20.6)
+npm run api:test                # 11 tests d'intégration (utilise DATABASE_URL)
 ```
-Ne jamais modifier une migration déjà appliquée : en créer une nouvelle (le runner refuse sinon).
+Générer un secret : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+**Lancer les tests sur une base dédiée** (ex. `votally_test`) : ils créent des données que la base conserve (ledger, votes et audit sont immuables par conception).
 
-## Ce que la base garantit déjà (l'API n'a pas à le réimplémenter)
-| Garantie | Mécanisme |
-|---|---|
-| Aucun vote sans commande confirmée | trigger `votes_before_insert` |
-| Aucun vote payant sans paiement réussi du bon montant | trigger `vote_orders_require_payment` + CHECK `payments_check_insert` |
-| Un paiement ne compte jamais deux fois | index unique `uq_payment_one_success_per_order` + `confirm_payment_and_votes()` rejouable |
-| Commission / frais / net cohérents (8 %, arrondi au FCFA) | CHECK `orders_amounts` |
-| Prix du vote ≥ minimum plateforme, verrouillé après lancement | triggers sur `contests` |
-| Slugs réservés, format, transitions d'état, règlement + 2 candidats avant activation | triggers sur `contests` |
-| Quota de votes gratuits par numéro et par période (sans course concurrente) | `vote_orders_before_insert` + verrou consultatif |
-| Ledger immuable et équilibré (débits = crédits, vérifié au COMMIT) | triggers `block_mutation`, `ledger_check_balanced` |
-| Retrait seulement si KYC validé, concours clos + 72 h, fonds non gelés, solde suffisant | `payouts_before_insert`, `creator_withdrawable_xaf()` |
-| Concours clos : paiement tardif (> 15 min) → argent conservé, `needs_refund`, aucun vote | `confirm_payment_and_votes()` |
+## Routes de l'API
+**Authentification** — `POST /auth/register` · `POST /auth/verify` (code reçu) · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me`.
+En développement, la réponse d'inscription contient `devCode` (le code n'est pas envoyé réellement). Session : cookie HttpOnly 30 jours, ou `Authorization: Bearer <jwt>` (Bruno/Postman).
 
-## Contrat pour l'API (Bloc 2)
-**Acteur dans l'audit** : au début de chaque transaction d'écriture :
-`SELECT set_config('votally.actor_id', '<uuid utilisateur>', true);`
+**Créateur** (connecté ; droits `owner` / `manager` / `viewer` par concours)
+- `POST /contests` · `GET /contests` · `GET|PATCH|DELETE /contests/:id` (suppression : brouillons)
+- `POST /contests/:id/actions/{activate|pause|resume|close|archive}` (propriétaire)
+- `GET|POST /contests/:id/candidates` (POST accepte un objet ou une liste) · `PATCH|DELETE /contests/:id/candidates/:cid`
+- `GET|POST /contests/:id/packs`
+- `POST /contests/:id/members/invite` → lien d'invitation · `POST /contests/invitations/accept` · `GET /contests/:id/members` · `DELETE /contests/:id/members/:mid`
+- `GET /contests/:id/dashboard` (finances réservées au propriétaire) · `GET /contests/:id/results` · `GET /contests/:id/results.csv` · `GET /contests/:id/orders`
 
-**Vote gratuit** (une transaction) :
-1. vérifier le code SMS (`otp_codes`) ;
-2. `INSERT vote_orders (kind='free', voter_phone_hash=SHA256(téléphone + PHONE_HASH_PEPPER), …)` ;
-3. `INSERT vote_order_choices` ;
-4. `SELECT confirm_free_order(order_id)`.
+**Public** (sans compte) — pour le Bloc 3
+- `GET /public/contests/:slug` (concours + candidats + packs) · `GET /public/contests/:slug/results` (selon `resultsDisplay`)
+- Vote gratuit : `POST /public/contests/:slug/otp` {phone} puis `POST /public/contests/:slug/votes/free` {phone, code, choices[]}
+- Vote payant : `POST /public/contests/:slug/orders` {method: mtn_momo|orange_money|card, phone, packId?, choices[]} (en-tête `Idempotency-Key` conseillé) → `GET /public/orders/:reference` pour suivre le statut
+- Concours privé : en-tête `x-contest-password`.
 
-**Vote payant** :
-1. `INSERT vote_orders (kind='paid', status='pending', unit_price_xaf, subtotal_xaf, fee_xaf, total_xaf, commission_rate_bps = current_commission_bps(), commission_xaf = round(subtotal × bps / 10000), creator_net_xaf = subtotal − commission_xaf, expires_at)` + `vote_order_choices` ;
-2. `INSERT payments` (montant = `total_xaf`) puis appeler l'agrégateur ;
-3. à la réception du webhook : vérifier la signature, `INSERT webhook_events` (unique `(provider, event_id)` = anti-rejeu), **revérifier le statut auprès de l'agrégateur**, puis `SELECT confirm_payment_and_votes(payment_id, provider_reference)` ;
-4. échec / expiration : `fail_payment(payment_id, raison, expiré?)` ; job chaque minute : `SELECT expire_pending_orders()`.
+**Webhook** — `POST /webhooks/payments/:provider` (corps brut + en-tête `x-signature`).
+**Développement** — `POST /dev/mock-pay/:providerReference` {status} (absent en production).
+Format d'erreur : `{ "error": { "code", "message" } }` ; les règles métier de la base arrivent en 422 avec un message français.
 
-**Retrait** : `INSERT payouts` (2FA obligatoire, `twofa_verified_at`) → appel API de décaissement → `complete_payout(payout_id, provider, reference)` (ou `UPDATE … status='failed'`).
+## Principes à ne pas casser
+1. **Les montants ne viennent jamais du client** : l'API les calcule (prix × votes, frais, commission) et la base les revérifie.
+2. **On ne croit pas un webhook sur parole** : signature → anti-rejeu (`webhook_events`) → `provider.verify()` serveur à serveur → `confirm_payment_and_votes()` (atomique, rejouable).
+3. **Un code SMS est consommé dans sa propre transaction** (un essai raté reste compté même si le vote échoue ensuite).
+4. **Le nombre de candidats par vote est validé avant paiement** (défaut trouvé par les tests : sans cela, l'erreur survenait après le débit du votant).
+5. Les téléphones des votants ne sont stockés que hachés (+ masqués). **Ne jamais perdre ni changer `PHONE_HASH_PEPPER`.**
 
-**Fraude / litige** : `invalidate_vote(vote_id, admin, motif)`, `refund_payment(payment_id, admin, motif)`, gel des fonds : `UPDATE contests SET payout_frozen_at = now(), payout_frozen_reason = '…'`.
+## Reste à faire (Bloc 2b)
+- **Agrégateur réel** : écrire un adaptateur implémentant `PaymentProvider` (`api/src/providers.ts`) pour l'agrégateur choisi, puis l'ajouter à `PAYMENT_PROVIDER`. Remplacer `FEE_RATE_BPS` par le barème réel.
+- **SMS réel** (interface `SmsProvider`) et **email réel** pour les codes d'inscription.
+- **KYC et retraits** : endpoints `POST /me/kyc`, `POST /payouts` (2FA obligatoire) + appel à l'API de décaissement puis `complete_payout()` ; la base applique déjà toutes les règles.
+- **Administration** : validation KYC, invalidation de votes (`invalidate_vote`), remboursements (`refund_payment`), alertes de fraude (`fraud_flags`), gel de fonds.
+- **Anti-fraude actif** : règles qui alimentent `fraud_flags` (rafales, appareils multiples) ; CAPTCHA sur le vote gratuit.
+- **Images** : upload candidats / bannière (compression WebP) vers un stockage objet.
+- **Sous-domaines** : le front lit le slug depuis `slug.votally.com` et appelle `/public/contests/:slug` (DNS wildcard + certificat wildcard en production).
+- **Sécurité** : expiration glissante des sessions, verrouillage progressif des connexions, 2FA TOTP, tâche de reprise des webhooks non traités (`webhook_events WHERE processed_at IS NULL`).
 
-**Résultats** : vue `contest_results` (classement, votes payants / gratuits). `reconcile_vote_counts(contest_id)` recalcule les compteurs depuis les votes (utile si un cache Redis dérive).
-
-**Contrôles de santé à surveiller** : `SELECT * FROM ledger_integrity` (doit valoir 0) ; paiements `needs_refund` ; webhooks non traités.
-
-## Pièges et décisions à garder en tête
-- **Montants** : entiers FCFA partout (jamais de décimaux).
-- **Téléphones des votants** : stockés hachés (+ masqués) ; ne chiffrer le numéro (`voter_phone_enc`) que si un reçu SMS est demandé. **Le poivre ne doit jamais être perdu ni changé** (sinon les quotas de votes gratuits repartent de zéro).
-- **Pas de suppression** de votes, commandes, paiements, écritures comptables : on invalide ou on passe une écriture inverse.
-- **Concurrence en finale** : les compteurs `candidate_vote_counts` sont mis à jour par trigger (ligne chaude par candidat). Si on dépasse ~200 votes/s sur un même candidat, passer à des compteurs Redis réconciliés par `reconcile_vote_counts()`.
-- **Accès** : les droits (propriétaire / gestionnaire / observateur) sont à appliquer dans l'API ; la table `contest_members` les porte. Row Level Security éventuelle : décision à prendre au Bloc 2.
-- Le **choix de l'agrégateur** et du **montage des fonds** (voir cahier des charges, section 16) reste ouvert ; la colonne `payments.provider` est volontairement générique.
-- Aspects légaux (loi 2024/017, agrément paiement CEMAC, TVA) : à valider avec un juriste / expert-comptable avant le lancement.
-
-## Prochaines étapes recommandées
-1. **Maintenant (hors Claude)** : demander l'ouverture d'un compte marchand chez 2 agrégateurs (CinetPay, Notch Pay, Monetbil, Campay…) avec accès API de décaissement.
-2. Bloc 2 : API Express + TypeScript (auth, concours, candidats, `vote-orders`, webhooks) en s'appuyant sur les fonctions SQL ci-dessus.
-3. Bloc 3 : page de vote Next.js mobile-first, FR/EN, lien et aperçu par candidat.
-4. Ensuite : paiements réels en sandbox, KYC et retraits, tableau de bord, administration.
+## Avant la mise en production
+Avis juridique (loi 2024/017, agrément paiement CEMAC, TVA), choix d'hébergement, test d'intrusion, sauvegardes testées. Voir le cahier des charges, sections 10, 12 et 16.

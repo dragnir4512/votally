@@ -21,8 +21,15 @@ BEGIN
   RAISE NOTICE 'OK   %', p_label;
 END $$;
 
+CREATE FUNCTION pg_temp.bal(p_code text) RETURNS bigint LANGUAGE sql AS $$
+  SELECT COALESCE((SELECT balance_xaf FROM ledger_balances WHERE code = p_code), 0)
+$$;
+
 DO $$
 DECLARE
+  -- Soldes de départ des comptes globaux : le test fonctionne aussi sur une base déjà utilisée
+  b_clear bigint := pg_temp.bal('CLEARING:cinetpay'); b_comm bigint := pg_temp.bal('REVENUE:COMMISSION');
+  b_fees bigint := pg_temp.bal('LIABILITY:PROVIDER_FEES'); b_refund bigint := pg_temp.bal('LIABILITY:REFUNDS_DUE');
   u_owner uuid; u_unverified uuid;
   c_free uuid; c_paid uuid; c_late uuid;
   ca uuid; cb uuid; pa uuid; pb uuid; la uuid; lb uuid;
@@ -53,6 +60,7 @@ BEGIN
   UPDATE contests SET status = 'active' WHERE id = c_free;
   PERFORM pg_temp.eq('concours activé', (SELECT count(*) FROM contests WHERE id = c_free AND status = 'active' AND activated_at IS NOT NULL), 1);
   PERFORM pg_temp.expect_fail(format($f$UPDATE contests SET slug='autre-slug' WHERE id=%L$f$, c_free), 'verrouillés');
+  PERFORM pg_temp.expect_fail(format($f$UPDATE contests SET max_choices_per_vote=3 WHERE id=%L$f$, c_free), 'verrouillés');
   PERFORM pg_temp.expect_fail(format($f$DELETE FROM candidates WHERE id=%L$f$, ca), 'non supprimable');
   PERFORM pg_temp.expect_fail(format($f$DELETE FROM contests WHERE id=%L$f$, c_free), 'brouillons');
 
@@ -97,9 +105,9 @@ BEGIN
   PERFORM pg_temp.eq('paiement confirmé -> statut', (res ->> 'status' = 'confirmed')::int, 1);
   PERFORM pg_temp.eq('votes candidat A', (SELECT valid_votes FROM candidate_vote_counts WHERE candidate_id = pa), 7);
   PERFORM pg_temp.eq('votes candidat B', (SELECT valid_votes FROM candidate_vote_counts WHERE candidate_id = pb), 3);
-  PERFORM pg_temp.eq('ledger : compte transit débité 1025', (SELECT balance_xaf FROM ledger_balances WHERE code = 'CLEARING:cinetpay'), 1025);
-  PERFORM pg_temp.eq('ledger : commission 80', (SELECT balance_xaf FROM ledger_balances WHERE code = 'REVENUE:COMMISSION'), 80);
-  PERFORM pg_temp.eq('ledger : frais agrégateur 25', (SELECT balance_xaf FROM ledger_balances WHERE code = 'LIABILITY:PROVIDER_FEES'), 25);
+  PERFORM pg_temp.eq('ledger : compte transit débité 1025', pg_temp.bal('CLEARING:cinetpay') - b_clear, 1025);
+  PERFORM pg_temp.eq('ledger : commission 80', pg_temp.bal('REVENUE:COMMISSION') - b_comm, 80);
+  PERFORM pg_temp.eq('ledger : frais agrégateur 25', pg_temp.bal('LIABILITY:PROVIDER_FEES') - b_fees, 25);
   PERFORM pg_temp.eq('ledger : solde créateur 920', (SELECT balance_xaf FROM ledger_balances WHERE owner_user_id = u_owner), 920);
 
   res := confirm_payment_and_votes(pay, 'CP-1001');      -- webhook rejoué
@@ -154,14 +162,14 @@ BEGIN
   res := confirm_payment_and_votes(pay2, 'CP-2002');
   PERFORM pg_temp.eq('paiement tardif -> needs_refund', (res ->> 'status' = 'needs_refund')::int, 1);
   PERFORM pg_temp.eq('aucun vote compté', coalesce((SELECT sum(valid_votes) FROM candidate_vote_counts WHERE contest_id = c_late), 0), 0);
-  PERFORM pg_temp.eq('argent en attente de remboursement', (SELECT balance_xaf FROM ledger_balances WHERE code = 'LIABILITY:REFUNDS_DUE'), 1020);
+  PERFORM pg_temp.eq('argent en attente de remboursement', pg_temp.bal('LIABILITY:REFUNDS_DUE') - b_refund, 1020);
   PERFORM refund_payment(pay2, u_owner, 'concours clos');
-  PERFORM pg_temp.eq('remboursement soldé', (SELECT balance_xaf FROM ledger_balances WHERE code = 'LIABILITY:REFUNDS_DUE'), 0);
+  PERFORM pg_temp.eq('remboursement soldé', pg_temp.bal('LIABILITY:REFUNDS_DUE') - b_refund, 0);
 
   -- ============ REMBOURSEMENT D'UN PAIEMENT NORMAL + FRAUDE ============
   PERFORM refund_payment(pay, u_owner, 'fraude avérée');
   PERFORM pg_temp.eq('votes invalidés après remboursement', coalesce((SELECT sum(valid_votes) FROM candidate_vote_counts WHERE contest_id = c_paid), 0), 0);
-  PERFORM pg_temp.eq('commission annulée', (SELECT balance_xaf FROM ledger_balances WHERE code = 'REVENUE:COMMISSION'), 0);
+  PERFORM pg_temp.eq('commission annulée', pg_temp.bal('REVENUE:COMMISSION') - b_comm, 0);
 
   SELECT id INTO v_vote FROM votes WHERE order_id = (SELECT id FROM vote_orders WHERE contest_id = c_free LIMIT 1);
   PERFORM pg_temp.expect_fail(format($f$SELECT invalidate_vote(%s, %L, '')$f$, v_vote, u_owner), 'Motif');
