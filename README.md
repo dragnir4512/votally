@@ -7,6 +7,7 @@ Voir `HANDOFF.md` pour l'état du projet, le démarrage et les routes de l'API.
 db/migrations/   001 → 008 : schéma PostgreSQL, fonctions, triggers, données de référence
 db/tests/        invariants.sql : tests d'intégrité (rollback automatique)
 api/             API Node.js + TypeScript (Express) — src/ et test/
-scripts/         migrate.js : exécuteur de migrations
+web/             Site public Next.js (page de vote, sous-domaines) — app/, components/, lib/, test/
+scripts/         migrate.js (migrations) · seed-demo.mjs (concours de démonstration)
 docs/            cahier des charges (à ajouter)
 ```

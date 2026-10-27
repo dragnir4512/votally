@@ -1,4 +1,4 @@
-# VOTALLY — Passation (état au 25 octobre 2026)
+# VOTALLY — Passation (état au 27 octobre 2026)
 
 ## Avancement
 | Bloc | Contenu | État |
@@ -6,7 +6,8 @@
 | 1 | Base PostgreSQL : 8 migrations, runner, tests d'intégrité | ✅ terminé |
 | 2 | **API Node.js + TypeScript** (auth, concours, candidats, vote gratuit / payant, webhooks, tableau de bord) | ✅ terminé (agrégateur **factice**) |
 | 2b | Agrégateur réel, SMS/email réels, KYC + retraits (API), administration, upload d'images | ⏳ à faire |
-| 3 | Page de vote publique (Next.js, mobile-first, FR/EN) | ⏳ à faire |
+| 3 | **Page de vote publique** (Next.js, mobile-first, FR/EN, sous-domaines, vote gratuit et payant, résultats, partage) | ✅ terminé (agrégateur factice) |
+| 4 | Espace organisateur (tableau de bord, création de concours, finances, retraits) | ⏳ à faire |
 
 ## Mise à jour depuis le Bloc 1
 Extraire le zip PAR-DESSUS ton dépôt (il ne contient ni `.env` ni `node_modules`). Nouveautés : dossier `api/`, migration `008`, `.env.example`, ce fichier.
@@ -15,10 +16,37 @@ cp .env.example .env            # puis renseigner JWT_SECRET et PHONE_HASH_PEPPE
 npm run db:migrate              # applique 008 (les migrations 001-007 déjà appliquées sont ignorées)
 npm run api:install             # installe les dépendances de l'API
 npm run api:dev                 # API sur http://localhost:3000   (Node >= 20.6)
-npm run api:test                # 11 tests d'intégration (utilise DATABASE_URL)
+npm run api:test                # 12 tests d'intégration (utilise DATABASE_URL)
 ```
 Générer un secret : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 **Lancer les tests sur une base dédiée** (ex. `votally_test`) : ils créent des données que la base conserve (ledger, votes et audit sont immuables par conception).
+
+## Bloc 3 — Page de vote publique (dossier `web/`)
+**Installer et lancer** (3 terminaux, à la racine du projet) :
+```bash
+npm run web:install                      # une seule fois
+cp web/.env.example web/.env.local       # une seule fois (voir les variables ci-dessous)
+npm run api:dev                          # terminal 1 : API sur :3000
+npm run web:dev                          # terminal 2 : site sur http://localhost:3001
+npm run demo                             # terminal 3 : crée un concours de démonstration et affiche son adresse
+```
+Tester depuis un téléphone sur le même Wi-Fi : `npm run web:dev:lan`, puis ouvrir `http://<IP-du-PC>:3001/<slug>` (autoriser le pare-feu Windows).
+
+**Adresses** : `http://localhost:3001/<slug>` (accès direct) · `http://<slug>.localhost:3001` (sous-domaine, Chrome/Edge) · `/<slug>/c/<numéro>` (page d'un candidat, avec aperçu de partage WhatsApp/Facebook). En production : `<slug>.votally.com` (DNS + certificat wildcard) ; le middleware réécrit vers `/<slug>`.
+
+**Variables** (`web/.env.local`) : `API_URL` (adresse de l'API, côté serveur), `NEXT_PUBLIC_ROOT_DOMAIN` (domaine racine des sous-domaines), `NEXT_PUBLIC_DEV_MOCK` (1 = bouton « Simuler le paiement » ; **0 en production**, fixé AU MOMENT du build), `NEXT_PUBLIC_MEDIA_URL` (images, vide pour l'instant).
+
+**Fonctionnement** : le navigateur appelle toujours `/api/...` (proxy Next vers l'API : pas de CORS, adresse de l'API privée). La page est rendue côté serveur (SEO, aperçus de partage, ~115 Ko de JavaScript). Vote gratuit : téléphone → code SMS → vote. Vote payant : choix des votes ou d'un pack → **devis serveur (prix + frais)** → paiement Mobile Money/carte → suivi automatique toutes les 3 s → reçu. Le navigateur n'envoie jamais de montant.
+
+**Tests** : `npm run web:test` (11 tests : utilitaires, FR/EN identiques, feuille de vote gratuit / payant / erreurs / pack). Le parcours complet (pages, sous-domaine, proxy, vote gratuit, devis, paiement simulé, résultats) a aussi été vérifié avec de vrais serveurs.
+
+**À savoir / reste à faire (Bloc 3b)**
+- **Aucun test dans un vrai navigateur** n'a été fait côté Claude (pas de navigateur disponible) : l'apparence et le confort sur téléphone sont à valider par toi (captures bienvenues).
+- Images des candidats : vignettes à initiales tant que l'upload (Bloc 2b) et `NEXT_PUBLIC_MEDIA_URL` ne sont pas en place ; aperçus de partage sans image.
+- Concours privés (mot de passe) : la page affiche un avis ; la saisie du mot de passe reste à faire.
+- Messages d'erreur « règle métier » renvoyés par la base : en français même si le visiteur est en anglais.
+- Derrière Cloudflare puis Next puis l'API, régler `trust proxy` de l'API selon le nombre réel de proxys (sinon l'IP des votants est fausse).
+- CSP, WebSocket / temps réel (actuellement : actualisation des résultats toutes les 15 s), PWA installable : plus tard.
 
 ## Routes de l'API
 **Authentification** — `POST /auth/register` · `POST /auth/verify` (code reçu) · `POST /auth/login` · `POST /auth/logout` · `GET /auth/me`.
@@ -32,14 +60,15 @@ En développement, la réponse d'inscription contient `devCode` (le code n'est p
 - `POST /contests/:id/members/invite` → lien d'invitation · `POST /contests/invitations/accept` · `GET /contests/:id/members` · `DELETE /contests/:id/members/:mid`
 - `GET /contests/:id/dashboard` (finances réservées au propriétaire) · `GET /contests/:id/results` · `GET /contests/:id/results.csv` · `GET /contests/:id/orders`
 
-**Public** (sans compte) — pour le Bloc 3
+**Public** (sans compte) — utilisé par la page de vote
+- `POST /public/contests/:slug/quote` (devis : prix + frais, sans effet de bord)
 - `GET /public/contests/:slug` (concours + candidats + packs) · `GET /public/contests/:slug/results` (selon `resultsDisplay`)
 - Vote gratuit : `POST /public/contests/:slug/otp` {phone} puis `POST /public/contests/:slug/votes/free` {phone, code, choices[]}
 - Vote payant : `POST /public/contests/:slug/orders` {method: mtn_momo|orange_money|card, phone, packId?, choices[]} (en-tête `Idempotency-Key` conseillé) → `GET /public/orders/:reference` pour suivre le statut
 - Concours privé : en-tête `x-contest-password`.
 
 **Webhook** — `POST /webhooks/payments/:provider` (corps brut + en-tête `x-signature`).
-**Développement** — `POST /dev/mock-pay/:providerReference` {status} (absent en production).
+**Développement** (absent en production) — `POST /dev/mock-pay/orders/:reference` {status?} simule le paiement d'une commande comme un vrai webhook ; `POST /dev/mock-pay/:providerReference` {status} change seulement le statut chez l'agrégateur factice.
 Format d'erreur : `{ "error": { "code", "message" } }` ; les règles métier de la base arrivent en 422 avec un message français.
 
 ## Principes à ne pas casser

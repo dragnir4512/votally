@@ -117,6 +117,10 @@ describe('Vote payant de bout en bout', () => {
     expect(pub.body.candidates).toHaveLength(3);
 
     const [a, b] = c.candidates;
+    const quote = await request(app).post(`/public/contests/${c.slug}/quote`)
+      .send({ method: 'mtn_momo', choices: [{ candidateId: a!.id, quantity: 7 }, { candidateId: b!.id, quantity: 3 }] });
+    expect(quote.body).toMatchObject({ votes: 10, subtotalXaf: 1000, feeXaf: 25, totalXaf: 1025 });   // le devis annonce le même total que la commande
+
     const order = await request(app).post(`/public/contests/${c.slug}/orders`).set('Idempotency-Key', 'k-' + c.id)
       .send({ method: 'mtn_momo', phone: '691234567', choices: [{ candidateId: a!.id, quantity: 7 }, { candidateId: b!.id, quantity: 3 }] });
     expect(order.status, JSON.stringify(order.body)).toBe(201);
@@ -213,5 +217,19 @@ describe('Vote gratuit par code SMS', () => {
     const { agent } = await signup();
     const c = await createContest(agent);
     expect((await request(app).get(`/public/contests/${c.slug}`)).status).toBe(404);
+  });
+});
+
+describe('Simulateur de paiement (développement)', () => {
+  it('une commande payée via /dev/mock-pay/orders compte les votes comme un vrai webhook', async () => {
+    const { agent } = await signup();
+    const c = await createContest(agent);
+    await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
+    const order = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'orange_money', phone: '655123456', choices: [{ candidateId: c.candidates[0]!.id, quantity: 4 }] });
+    expect(order.status).toBe(201);
+    const paid = await request(app).post(`/dev/mock-pay/orders/${order.body.reference}`).send({});
+    expect(paid.body.outcome).toBe('confirmed');
+    expect((await request(app).get(`/public/orders/${order.body.reference}`)).body.order.status).toBe('confirmed');
+    expect((await agent.get(`/contests/${c.id}/dashboard`)).body.dashboard.paidVotes).toBe(4);
   });
 });

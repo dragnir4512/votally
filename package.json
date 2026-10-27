@@ -10,7 +10,12 @@
     "db:test": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/tests/invariants.sql",
     "api:install": "npm --prefix api install",
     "api:dev": "npm --prefix api run dev",
-    "api:test": "npm --prefix api test"
+    "api:test": "npm --prefix api test",
+    "web:install": "npm --prefix web install",
+    "web:dev": "npm --prefix web run dev",
+    "web:dev:lan": "npm --prefix web run dev:lan",
+    "web:test": "npm --prefix web test",
+    "demo": "node scripts/seed-demo.mjs"
   },
   "dependencies": {
     "pg": "^8.11.0"

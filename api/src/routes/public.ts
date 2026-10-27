@@ -100,6 +100,20 @@ publicRouter.post('/contests/:slug/votes/free', ah(async (req, res) => {
   res.status(201).json({ reference: out.reference, votes, status: 'confirmed' });
 }));
 
+
+/** Calcul du prix côté serveur (jamais fourni par le client). Partagé par le devis et la création de commande. */
+async function priceFor(c: any, body: { packId?: string; choices: { quantity: number }[] }) {
+  const chosen = body.choices.reduce((s, x) => s + x.quantity, 0);
+  let votes = chosen; let subtotal = chosen * c.vote_price_xaf; let packId: string | null = null;
+  if (body.packId) {
+    const p = (await q('SELECT * FROM vote_packs WHERE id = $1 AND contest_id = $2 AND is_active', [body.packId, c.id])).rows[0];
+    if (!p) throw new HttpError(400, 'Pack invalide', 'invalid_pack');
+    votes = p.votes_count; subtotal = p.price_xaf; packId = p.id;
+  }
+  if (chosen !== votes) throw new HttpError(400, `La répartition (${chosen}) doit totaliser ${votes} vote(s)`, 'choices_mismatch');
+  return { votes, subtotal, packId };
+}
+
 // ---------- Vote payant : création de la commande + demande de paiement ----------
 const orderSchema = z.object({
   method: z.enum(['mtn_momo', 'orange_money', 'card']),
@@ -108,6 +122,17 @@ const orderSchema = z.object({
   choices: choicesSchema,
   locale: z.enum(['fr', 'en']).optional(),
 });
+
+// Devis : le votant voit le total (prix + frais) AVANT de lancer le paiement. Aucun effet de bord.
+publicRouter.post('/contests/:slug/quote', ah(async (req, res) => {
+  const body = orderSchema.parse(req.body);
+  const c = await loadPublicContest(req, req.params.slug as string);
+  if (c.status !== 'active' || !['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
+  assertChoiceCount(c, body.choices);
+  const { votes, subtotal } = await priceFor(c, body);
+  const fee = defaultProvider().estimateFee(subtotal);
+  res.json({ votes, subtotalXaf: subtotal, feeXaf: fee, totalXaf: subtotal + fee, currency: 'XAF' });
+}));
 
 publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
   const body = orderSchema.parse(req.body);
@@ -127,14 +152,7 @@ publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
   const provider = defaultProvider();
   const created = await withTx(null, async (cx) => {
     await assertCandidates(cx, c.id, body.choices);
-    const chosen = body.choices.reduce((s, x) => s + x.quantity, 0);
-    let votes = chosen; let subtotal = chosen * c.vote_price_xaf; let packId: string | null = null;
-    if (body.packId) {
-      const p = (await cx.query('SELECT * FROM vote_packs WHERE id = $1 AND contest_id = $2 AND is_active', [body.packId, c.id])).rows[0];
-      if (!p) throw new HttpError(400, 'Pack invalide', 'invalid_pack');
-      votes = p.votes_count; subtotal = p.price_xaf; packId = p.id;
-    }
-    if (chosen !== votes) throw new HttpError(400, `La répartition (${chosen}) doit totaliser ${votes} vote(s)`, 'choices_mismatch');
+    const { votes, subtotal, packId } = await priceFor(c, body);
 
     // Montants calculés côté serveur, jamais fournis par le client ; la base les revérifie (CHECK orders_amounts)
     const fee = provider.estimateFee(subtotal);
