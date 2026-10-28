@@ -41,6 +41,7 @@ BEGIN
   -- ============ CONCOURS ============
   PERFORM pg_temp.expect_fail(format($f$INSERT INTO contests (owner_id,name,slug) VALUES (%L,'Concours X','admin')$f$, u_owner), 'Slug réservé');
   PERFORM pg_temp.expect_fail(format($f$INSERT INTO contests (owner_id,name,slug) VALUES (%L,'Concours X','Mauvais Slug')$f$, u_owner), 'contests_slug_format');
+  PERFORM pg_temp.expect_fail(format($f$INSERT INTO contests (owner_id,name,slug) VALUES (%L,'Espace','espace')$f$, u_owner), 'Slug réservé');   -- migration 009
   PERFORM pg_temp.expect_fail(format($f$INSERT INTO contests (owner_id,name,slug) VALUES (%L,'Concours X','concours-x')$f$, u_unverified), 'vérifié');
   PERFORM pg_temp.expect_fail(format($f$INSERT INTO contests (owner_id,name,slug,vote_type,vote_price_xaf) VALUES (%L,'Payant','payant-trop-bas','paid',50)$f$, u_owner), 'minimum plateforme');
   PERFORM pg_temp.expect_fail(format($f$INSERT INTO contests (owner_id,name,slug,vote_type,vote_price_xaf) VALUES (%L,'Incohérent','incoherent','free',100)$f$, u_owner), 'contests_price_matches_type');

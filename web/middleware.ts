@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 // slug.votally.com  ->  /slug   (le navigateur garde l'adresse du sous-domaine)
-const RESERVED = new Set(['www', 'app', 'api', 'admin', 'mail', 'cdn', 'static', 'assets', 'docs', 'help', 'status']);
+const RESERVED = new Set(['www', 'app', 'api', 'admin', 'mail', 'cdn', 'static', 'assets', 'docs', 'help', 'status', 'connexion', 'inscription', 'espace', 'invitation']);
 
 export function middleware(req: NextRequest) {
   const host = (req.headers.get('host') ?? '').toLowerCase();

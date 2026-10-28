@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(message: string, public code: string, public status: number) { super(message); }
+  constructor(message: string, public code: string, public status: number, public details?: string) { super(message); }
 }
 
 /** Appels navigateur -> /api/... (proxy Next vers l'API). */
@@ -11,6 +11,9 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
     cache: 'no-store',
   });
   const json = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(json?.error?.message ?? 'Erreur', json?.error?.code ?? 'error', res.status);
+  if (!res.ok) {
+    const d = json?.error?.details as { path: string; message: string }[] | undefined;   // erreurs de validation de l'API
+    throw new ApiError(json?.error?.message ?? 'Erreur', json?.error?.code ?? 'error', res.status, d?.map((x) => x.message).join(' · '));
+  }
   return json as T;
 }

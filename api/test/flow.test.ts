@@ -233,3 +233,39 @@ describe('Simulateur de paiement (développement)', () => {
     expect((await agent.get(`/contests/${c.id}/dashboard`)).body.dashboard.paidVotes).toBe(4);
   });
 });
+
+describe('Modification partielle d\'un concours', () => {
+  it('un PATCH ne modifie que les champs envoyés (aucune remise à zéro par défaut)', async () => {
+    const { agent } = await signup();
+    const r = await agent.post('/contests').send({ name: `Patch ${rnd()}`, voteType: 'paid', votePriceXaf: 250, maxChoicesPerVote: 3,
+      visibility: 'private', accessPassword: 'secret1', resultsDisplay: 'on_close', defaultLocale: 'en', freeVotesPerPeriod: 4, theme: { primaryColor: '#123456' } });
+    const id = r.body.contest.id;
+    const p = await agent.patch(`/contests/${id}`).send({ rules: 'Nouveau règlement' });
+    expect(p.status).toBe(200);
+    expect(p.body.contest).toMatchObject({ rules: 'Nouveau règlement', voteType: 'paid', votePriceXaf: 250, maxChoicesPerVote: 3,
+      visibility: 'private', hasPassword: true, resultsDisplay: 'on_close', defaultLocale: 'en', freeVotesPerPeriod: 4, theme: { primaryColor: '#123456' } });
+  });
+});
+
+describe('Slugs automatiques et packs', () => {
+  it('un nom correspondant à une page du site reçoit un suffixe au lieu d\'échouer', async () => {
+    const { agent } = await signup();
+    for (const name of ['Espace', 'Connexion', 'Admin']) {
+      const r = await agent.post('/contests').send({ name });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      expect(r.body.contest.slug).toMatch(new RegExp(`^${name.toLowerCase()}-[a-z0-9]+$`));
+    }
+    expect((await agent.post('/contests').send({ name: 'Espace', slug: 'espace' })).status).toBe(422);   // slug choisi à la main : refus explicite
+  });
+
+  it('un pack retiré disparaît de la liste et de la page publique', async () => {
+    const { agent } = await signup();
+    const c = await createContest(agent);
+    await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
+    const pack = (await agent.post(`/contests/${c.id}/packs`).send({ votesCount: 10, priceXaf: 900 })).body.pack;
+    expect((await request(app).get(`/public/contests/${c.slug}`)).body.packs).toHaveLength(1);
+    expect((await agent.delete(`/contests/${c.id}/packs/${pack.id}`)).status).toBe(204);
+    expect((await agent.get(`/contests/${c.id}/packs`)).body.packs).toHaveLength(0);
+    expect((await request(app).get(`/public/contests/${c.slug}`)).body.packs).toHaveLength(0);
+  });
+});

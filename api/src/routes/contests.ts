@@ -24,27 +24,43 @@ export function slugify(s: string): string {
   return base.length >= 3 ? base : 'concours';
 }
 
-const contestFields = z.object({
+// Forme des champs SANS valeur par défaut : sert au PATCH (seuls les champs envoyés changent).
+const contestShape = {
   name: z.string().trim().min(3).max(120),
   slug: z.string().optional(),
   description: z.string().max(5000).nullish(),
   rules: z.string().max(20000).nullish(),
   organizerName: z.string().max(120).nullish(),
   category: z.string().max(80).nullish(),
-  voteType: z.enum(['free', 'paid', 'mixed']).default('free'),
-  votePriceXaf: z.number().int().min(0).default(0),
+  voteType: z.enum(['free', 'paid', 'mixed']),
+  votePriceXaf: z.number().int().min(0),
   startsAt: z.coerce.date().nullish(),
   endsAt: z.coerce.date().nullish(),
-  visibility: z.enum(['public', 'private']).default('public'),
+  visibility: z.enum(['public', 'private']),
   accessPassword: z.string().min(4).max(100).nullish(),
-  resultsDisplay: z.enum(['realtime', 'on_close', 'hidden']).default('realtime'),
-  maxChoicesPerVote: z.number().int().min(1).max(50).default(1),
-  freeVotesPerPeriod: z.number().int().min(0).max(100).default(1),
-  freeVotePeriodHours: z.number().int().min(1).max(720).default(24),
-  defaultLocale: z.enum(['fr', 'en']).default('fr'),
-  theme: z.record(z.string(), z.any()).default({}),
+  resultsDisplay: z.enum(['realtime', 'on_close', 'hidden']),
+  maxChoicesPerVote: z.number().int().min(1).max(50),
+  freeVotesPerPeriod: z.number().int().min(0).max(100),
+  freeVotePeriodHours: z.number().int().min(1).max(720),
+  defaultLocale: z.enum(['fr', 'en']),
+  theme: z.record(z.string(), z.any()),
   bannerKey: z.string().nullish(),
+};
+// Création : les valeurs par défaut s'appliquent ici seulement.
+const contestFields = z.object({
+  ...contestShape,
+  voteType: contestShape.voteType.default('free'),
+  votePriceXaf: contestShape.votePriceXaf.default(0),
+  visibility: contestShape.visibility.default('public'),
+  resultsDisplay: contestShape.resultsDisplay.default('realtime'),
+  maxChoicesPerVote: contestShape.maxChoicesPerVote.default(1),
+  freeVotesPerPeriod: contestShape.freeVotesPerPeriod.default(1),
+  freeVotePeriodHours: contestShape.freeVotePeriodHours.default(24),
+  defaultLocale: contestShape.defaultLocale.default('fr'),
+  theme: contestShape.theme.default({}),
 });
+const contestPatch = z.object(contestShape).partial();
+
 
 const COLUMNS: Record<string, string> = {
   name: 'name', description: 'description', rules: 'rules', organizerName: 'organizer_name', category: 'category',
@@ -74,7 +90,9 @@ contestsRouter.post('/', ah(async (req, res) => {
          b.freeVotesPerPeriod, b.freeVotePeriodHours, b.defaultLocale, JSON.stringify(b.theme), b.bannerKey ?? null])).rows[0]);
       return res.status(201).json({ contest: publicContest(contest), url: `https://${contest.slug}.votally.com` });
     } catch (e: any) {
-      if (e.code === '23505' && e.constraint?.includes('slug') && !wantedSlug) continue;   // slug auto déjà pris : on réessaie avec un suffixe
+      const taken = e.code === '23505' && e.constraint?.includes('slug');
+      const reserved = e.code === '23514' && /Slug réservé/.test(String(e.message));
+      if ((taken || reserved) && !wantedSlug) continue;   // slug automatique déjà pris ou réservé : on réessaie avec un suffixe
       throw e;
     }
   }
@@ -101,7 +119,7 @@ contestsRouter.get('/:id', ah(async (req, res) => {
 contestsRouter.patch('/:id', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
   await needRole(req, id, ['owner', 'manager']);
-  const b = contestFields.partial().parse(req.body) as Record<string, any>;
+  const b = contestPatch.parse(req.body) as Record<string, any>;
   const sets: string[] = []; const vals: unknown[] = [];
   for (const [k, col] of Object.entries(COLUMNS)) {
     if (b[k] === undefined) continue;
@@ -190,10 +208,18 @@ contestsRouter.post('/:id/packs', ah(async (req, res) => {
   const r = await q('INSERT INTO vote_packs (contest_id, label, votes_count, price_xaf) VALUES ($1,$2,$3,$4) RETURNING *', [id, b.label ?? null, b.votesCount, b.priceXaf]);
   res.status(201).json({ pack: toCamel(r.rows[0]) });
 }));
+contestsRouter.delete('/:id/packs/:pid', ah(async (req, res) => {
+  const id = uuidParam(req, 'id'); const pid = uuidParam(req, 'pid');
+  await needRole(req, id, ['owner', 'manager']);
+  // Suppression douce : une commande passée peut référencer ce pack
+  const r = await q('UPDATE vote_packs SET is_active = false WHERE id = $2 AND contest_id = $1 RETURNING id', [id, pid]);
+  if (!r.rows[0]) throw new HttpError(404, 'Pack introuvable', 'not_found');
+  res.status(204).end();
+}));
 contestsRouter.get('/:id/packs', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
   await needRole(req, id, ['owner', 'manager', 'viewer']);
-  res.json({ packs: (await q('SELECT * FROM vote_packs WHERE contest_id = $1 ORDER BY votes_count', [id])).rows.map((x) => toCamel(x)) });
+  res.json({ packs: (await q('SELECT * FROM vote_packs WHERE contest_id = $1 AND is_active ORDER BY votes_count', [id])).rows.map((x) => toCamel(x)) });
 }));
 
 // ---------- Co-gestion par invitation (REQ-TEAM) ----------
