@@ -89,7 +89,8 @@ export function Overview({ contest, candidates, role, reload, goTo }: { contest:
             <div><dt>Commission VOTALLY (8 %)</dt><dd>− {xaf(dash.commissionXaf)}</dd></div>
             <div className="grand"><dt>Solde du concours</dt><dd>{xaf(dash.balanceXaf)}</dd></div>
           </dl>
-          <p className="muted small">Les frais de transaction sont payés par les votants en plus du prix des votes. Les retraits (Mobile Money) seront disponibles après la clôture du concours et un délai de sécurité de 72 h, une fois ton identité vérifiée : cette étape arrive dans une prochaine version.</p>
+          <p className="muted small">Les frais de transaction sont payés par les votants en plus du prix des votes. Les retraits (Mobile Money) sont possibles après la clôture du concours et un délai de sécurité de 72 h, une fois ton identité vérifiée.</p>
+          <Link href="/espace/compte" className="btn btn-outline sm">Vérifier mon identité / retirer mon argent</Link>
         </div>
       )}
     </section>

@@ -5,6 +5,8 @@ import { ah, HttpError, toCamel, uuidParam } from '../http.js';
 import { q, withTx } from '../db.js';
 import { config } from '../config.js';
 import { randomToken, requireAuth, sha256 } from '../security.js';
+import { processImage } from '../images.js';
+import { bodyBuffer, checkQuota, rawFile, storeFile } from './media.js';
 
 export const contestsRouter = Router();
 contestsRouter.use(requireAuth);
@@ -44,7 +46,6 @@ const contestShape = {
   freeVotePeriodHours: z.number().int().min(1).max(720),
   defaultLocale: z.enum(['fr', 'en']),
   theme: z.record(z.string(), z.any()),
-  bannerKey: z.string().nullish(),
 };
 // Création : les valeurs par défaut s'appliquent ici seulement.
 const contestFields = z.object({
@@ -66,7 +67,7 @@ const COLUMNS: Record<string, string> = {
   name: 'name', description: 'description', rules: 'rules', organizerName: 'organizer_name', category: 'category',
   voteType: 'vote_type', votePriceXaf: 'vote_price_xaf', startsAt: 'starts_at', endsAt: 'ends_at', visibility: 'visibility',
   resultsDisplay: 'results_display', maxChoicesPerVote: 'max_choices_per_vote', freeVotesPerPeriod: 'free_votes_per_period',
-  freeVotePeriodHours: 'free_vote_period_hours', defaultLocale: 'default_locale', theme: 'theme', bannerKey: 'banner_key', slug: 'slug',
+  freeVotePeriodHours: 'free_vote_period_hours', defaultLocale: 'default_locale', theme: 'theme', slug: 'slug',
 };
 
 const publicContest = (r: any) => { const { access_password_hash, ...rest } = r; return toCamel({ ...rest, has_password: !!access_password_hash }); };
@@ -83,11 +84,11 @@ contestsRouter.post('/', ah(async (req, res) => {
       const contest = await withTx(req.user!.id, async (c) => (await c.query(
         `INSERT INTO contests (owner_id, name, slug, description, rules, organizer_name, category, vote_type, vote_price_xaf,
            starts_at, ends_at, visibility, access_password_hash, results_display, max_choices_per_vote,
-           free_votes_per_period, free_vote_period_hours, default_locale, theme, banner_key)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+           free_votes_per_period, free_vote_period_hours, default_locale, theme)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
         [req.user!.id, b.name, slug, b.description ?? null, b.rules ?? null, b.organizerName ?? null, b.category ?? null, b.voteType,
          b.votePriceXaf, b.startsAt ?? null, b.endsAt ?? null, b.visibility, pwHash, b.resultsDisplay, b.maxChoicesPerVote,
-         b.freeVotesPerPeriod, b.freeVotePeriodHours, b.defaultLocale, JSON.stringify(b.theme), b.bannerKey ?? null])).rows[0]);
+         b.freeVotesPerPeriod, b.freeVotePeriodHours, b.defaultLocale, JSON.stringify(b.theme)])).rows[0]);
       return res.status(201).json({ contest: publicContest(contest), url: `https://${contest.slug}.votally.com` });
     } catch (e: any) {
       const taken = e.code === '23505' && e.constraint?.includes('slug');
@@ -156,7 +157,7 @@ contestsRouter.delete('/:id', ah(async (req, res) => {
 }));
 
 // ---------- Candidats ----------
-const candidateBody = z.object({ name: z.string().trim().min(1).max(120), description: z.string().max(2000).nullish(), imageKey: z.string().nullish(), sortOrder: z.number().int().optional() });
+const candidateBody = z.object({ name: z.string().trim().min(1).max(120), description: z.string().max(2000).nullish(), sortOrder: z.number().int().optional() });
 
 contestsRouter.get('/:id/candidates', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
@@ -173,8 +174,8 @@ contestsRouter.post('/:id/candidates', ah(async (req, res) => {
   const rows = await withTx(req.user!.id, async (c) => {
     const out = [];
     for (const [i, it] of items.entries()) {
-      out.push((await c.query('INSERT INTO candidates (contest_id, name, description, image_key, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-        [id, it.name, it.description ?? null, it.imageKey ?? null, it.sortOrder ?? i])).rows[0]);
+      out.push((await c.query('INSERT INTO candidates (contest_id, name, description, sort_order) VALUES ($1,$2,$3,$4) RETURNING *',
+        [id, it.name, it.description ?? null, it.sortOrder ?? i])).rows[0]);
     }
     return out;
   });
@@ -186,9 +187,9 @@ contestsRouter.patch('/:id/candidates/:cid', ah(async (req, res) => {
   await needRole(req, id, ['owner', 'manager']);
   const b = candidateBody.partial().extend({ isActive: z.boolean().optional() }).parse(req.body);
   const r = await q(
-    `UPDATE candidates SET name = COALESCE($3, name), description = COALESCE($4, description), image_key = COALESCE($5, image_key),
-            sort_order = COALESCE($6, sort_order), is_active = COALESCE($7, is_active)
-      WHERE id = $2 AND contest_id = $1 RETURNING *`, [id, cid, b.name ?? null, b.description ?? null, b.imageKey ?? null, b.sortOrder ?? null, b.isActive ?? null]);
+    `UPDATE candidates SET name = COALESCE($3, name), description = COALESCE($4, description),
+            sort_order = COALESCE($5, sort_order), is_active = COALESCE($6, is_active)
+      WHERE id = $2 AND contest_id = $1 RETURNING *`, [id, cid, b.name ?? null, b.description ?? null, b.sortOrder ?? null, b.isActive ?? null]);
   if (!r.rows[0]) throw new HttpError(404, 'Candidat introuvable', 'not_found');
   res.json({ candidate: toCamel(r.rows[0]) });
 }));
@@ -198,6 +199,28 @@ contestsRouter.delete('/:id/candidates/:cid', ah(async (req, res) => {
   await needRole(req, id, ['owner', 'manager']);
   await withTx(req.user!.id, (c) => c.query('DELETE FROM candidates WHERE id = $2 AND contest_id = $1', [id, cid]));  // avant lancement uniquement
   res.status(204).end();
+}));
+
+// ---------- Photos (traitées côté serveur : recadrage, WebP, métadonnées supprimées) ----------
+contestsRouter.post('/:id/candidates/:cid/image', rawFile, ah(async (req, res) => {
+  const id = uuidParam(req, 'id'); const cid = uuidParam(req, 'cid');
+  await needRole(req, id, ['owner', 'manager']);
+  if (!(await q('SELECT 1 FROM candidates WHERE id = $2 AND contest_id = $1', [id, cid])).rows[0]) throw new HttpError(404, 'Candidat introuvable', 'not_found');
+  await checkQuota(req.user!.id, ['candidate_image', 'contest_banner'], 300);
+  const data = await processImage(bodyBuffer(req), 'candidate');
+  const key = await storeFile({ userId: req.user!.id, data, ext: 'webp', contentType: 'image/webp', purpose: 'candidate_image', visibility: 'public' });
+  await q('UPDATE candidates SET image_key = $3 WHERE id = $2 AND contest_id = $1', [id, cid, key]);
+  res.status(201).json({ imageKey: key });
+}));
+
+contestsRouter.post('/:id/banner', rawFile, ah(async (req, res) => {
+  const id = uuidParam(req, 'id');
+  await needRole(req, id, ['owner', 'manager']);
+  await checkQuota(req.user!.id, ['candidate_image', 'contest_banner'], 300);
+  const data = await processImage(bodyBuffer(req), 'banner');
+  const key = await storeFile({ userId: req.user!.id, data, ext: 'webp', contentType: 'image/webp', purpose: 'contest_banner', visibility: 'public' });
+  await q('UPDATE contests SET banner_key = $2 WHERE id = $1', [id, key]);
+  res.status(201).json({ bannerKey: key });
 }));
 
 // ---------- Packs de votes ----------

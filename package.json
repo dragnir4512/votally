@@ -15,7 +15,8 @@
     "web:dev": "npm --prefix web run dev",
     "web:dev:lan": "npm --prefix web run dev:lan",
     "web:test": "npm --prefix web test",
-    "demo": "node scripts/seed-demo.mjs"
+    "demo": "node scripts/seed-demo.mjs",
+    "make-admin": "node scripts/make-admin.mjs"
   },
   "dependencies": {
     "pg": "^8.11.0"

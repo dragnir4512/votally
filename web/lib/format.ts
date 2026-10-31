@@ -24,8 +24,9 @@ export function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
+/** Les images passent par le proxy du site (/api/media) ; un CDN peut remplacer ce préfixe via NEXT_PUBLIC_MEDIA_URL. */
 export const mediaUrl = (key: string | null) =>
-  key && process.env.NEXT_PUBLIC_MEDIA_URL ? `${process.env.NEXT_PUBLIC_MEDIA_URL.replace(/\/$/, '')}/${key}` : null;
+  key ? `${(process.env.NEXT_PUBLIC_MEDIA_URL || '/api/media').replace(/\/$/, '')}/${key}` : null;
 
 export const uuid = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID()

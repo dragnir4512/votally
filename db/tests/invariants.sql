@@ -149,6 +149,16 @@ BEGIN
   PERFORM pg_temp.eq('retrait comptabilisé une seule fois', (SELECT count(*) FROM ledger_transactions WHERE payout_id = po), 1);
   PERFORM pg_temp.eq('audit des retraits écrit', ((SELECT count(*) FROM audit_logs WHERE object_type = 'payouts') >= 1)::int, 1);
 
+  -- ============ FICHIERS TÉLÉVERSÉS (migration 010) ============
+  INSERT INTO uploads (key, owner_user_id, visibility, purpose, content_type, size_bytes)
+    VALUES (md5('img-' || u_owner::text) || '.webp', u_owner, 'public', 'candidate_image', 'image/webp', 1234);
+  PERFORM pg_temp.expect_fail(format($f$INSERT INTO uploads (key, owner_user_id, visibility, purpose, content_type, size_bytes)
+      VALUES (md5('kyc-1') || '.pdf', %L, 'public', 'kyc_id', 'application/pdf', 10)$f$, u_owner), 'uploads_kyc_is_private');      -- une pièce KYC ne peut pas être publique
+  PERFORM pg_temp.expect_fail(format($f$INSERT INTO uploads (key, owner_user_id, visibility, purpose, content_type, size_bytes)
+      VALUES ('../../etc/passwd', %L, 'public', 'candidate_image', 'image/webp', 10)$f$, u_owner), 'uploads_key_format');         -- clé de fichier invalide
+  PERFORM pg_temp.expect_fail($f$UPDATE uploads SET visibility = 'public'$f$, 'immuable');
+  -- (la suppression reste possible : effacement à la demande d'un utilisateur, nettoyage des fichiers orphelins)
+
   -- ============ PAIEMENT TARDIF APRÈS CLÔTURE -> REMBOURSEMENT ============
   INSERT INTO contests (owner_id, name, slug, rules, vote_type, vote_price_xaf) VALUES (u_owner, 'Concours Tardif', 'concours-tardif', 'R', 'paid', 200) RETURNING id INTO c_late;
   INSERT INTO candidates (contest_id, name) VALUES (c_late, 'L1') RETURNING id INTO la;

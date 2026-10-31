@@ -24,12 +24,43 @@ export interface PaymentProvider {
   verify(providerReference: string): Promise<{ status: ProviderStatus; amountXaf?: number }>;
   verifyWebhookSignature(rawBody: Buffer, signature: string | undefined): boolean;
   parseWebhook(body: any): { eventId: string; providerReference: string };
+
+  // ---- Retraits des créateurs (décaissement vers Mobile Money) ----
+  /** Frais de retrait retenus sur le montant demandé (FCFA entiers). */
+  estimatePayoutFee(amountXaf: number): number;
+  /**
+   * Envoie l'argent. `reference` (identifiant du retrait chez nous) sert de clé d'idempotence côté agrégateur :
+   * rappeler disburse avec la même référence NE DOIT PAS payer deux fois.
+   */
+  disburse(i: { reference: string; amountXaf: number; method: 'mtn_momo' | 'orange_money'; phone: string; name: string }):
+    Promise<{ providerReference: string; status: 'succeeded' | 'processing' | 'failed'; reason?: string }>;
+  /** Retrouve un retrait par NOTRE référence ('unknown' si l'agrégateur ne le connaît pas). */
+  verifyPayout(reference: string): Promise<{ status: 'succeeded' | 'processing' | 'failed' | 'unknown'; providerReference?: string; reason?: string }>;
 }
 
 // --- Agrégateur factice pour développement et tests ---
 const mockPayments = new Map<string, { status: ProviderStatus; amountXaf: number }>();
 
-export const mockProvider: PaymentProvider & { sign(raw: string): string; setStatus(ref: string, status: ProviderStatus): void } = {
+type PayoutOutcome = 'succeeded' | 'processing' | 'failed';
+const mockPayouts = new Map<string, { status: PayoutOutcome; providerReference: string; reason?: string }>();
+
+export const mockProvider: PaymentProvider & {
+  sign(raw: string): string; setStatus(ref: string, status: ProviderStatus): void;
+  /** Résultat des prochains retraits simulés (tests et développement). */
+  nextPayoutOutcome: PayoutOutcome; setPayoutStatus(reference: string, status: PayoutOutcome): void;
+} = {
+  nextPayoutOutcome: 'succeeded',
+  estimatePayoutFee: (amount) => Math.max(100, Math.ceil(amount / 100)),         // 1 %, minimum 100 FCFA
+  async disburse({ reference }) {
+    const known = mockPayouts.get(reference);                                      // idempotence : même référence = même résultat
+    if (known) return known;
+    const r = { status: mockProvider.nextPayoutOutcome, providerReference: 'MOCKPO-' + randomUUID(),
+      reason: mockProvider.nextPayoutOutcome === 'failed' ? 'Compte destinataire refusé (simulation)' : undefined };
+    mockPayouts.set(reference, r);
+    return r;
+  },
+  async verifyPayout(reference) { return mockPayouts.get(reference) ?? { status: 'unknown' as const }; },
+  setPayoutStatus(reference, status) { const p = mockPayouts.get(reference); if (p) p.status = status; },
   name: 'mock',
   estimateFee: (subtotal) => Math.ceil((subtotal * config.FEE_RATE_BPS) / 10_000),
   async initiate({ amountXaf }) {

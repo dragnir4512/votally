@@ -13,6 +13,8 @@ const schema = z.object({
   PAYMENT_PROVIDER: z.enum(['mock']).default('mock'),
   MOCK_WEBHOOK_SECRET: z.string().min(8).default('mock-secret-change-me'),
   CORS_ORIGINS: z.string().default('http://localhost:3001'),
+  // Dossier des fichiers téléversés (développement / serveur unique). En production : stockage objet S3 (voir storage.ts).
+  UPLOAD_DIR: z.string().default('./uploads'),
 });
 
 const parsed = schema.safeParse(process.env);

@@ -39,6 +39,7 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
       message: err.constraint ? 'Valeurs non conformes aux règles du concours' : err.message, constraint: err.constraint } });
   }
   if (code === 'P0001') return res.status(400).json({ error: { code: 'rejected', message: err.message } });
+  if (err?.type === 'entity.too.large') return res.status(413).json({ error: { code: 'too_large', message: 'Fichier trop volumineux' } });
   if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: { code: 'bad_json', message: 'JSON invalide' } });
   console.error('[erreur]', req.method, req.originalUrl, err);
   return res.status(500).json({ error: { code: 'internal', message: isProd ? 'Erreur interne' : String(err?.message ?? err) } });

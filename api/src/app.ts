@@ -13,6 +13,9 @@ import { authRouter } from './routes/auth.js';
 import { contestsRouter } from './routes/contests.js';
 import { publicRouter } from './routes/public.js';
 import { webhooksRouter } from './routes/webhooks.js';
+import { accountRouter } from './routes/account.js';
+import { adminRouter } from './routes/admin.js';
+import { mediaRouter } from './routes/media.js';
 
 const limiter = (limit: number, windowMs = 60_000) =>
   rateLimit({ windowMs, limit, standardHeaders: 'draft-7', legacyHeaders: false, skip: () => isTest,
@@ -32,7 +35,14 @@ export function createApp() {
   app.get('/health', ah(async (_req, res) => { await q('SELECT 1'); res.json({ ok: true }); }));
 
   app.use('/auth', limiter(20), authRouter);
+  app.use('/contests/:id/candidates/:cid/image', limiter(30));
+  app.use('/contests/:id/banner', limiter(30));
   app.use('/contests', limiter(300), contestsRouter);
+  app.use('/media', limiter(600), mediaRouter);
+  app.use('/me/kyc/documents', limiter(20));
+  app.use('/payouts', limiter(20));
+  app.use('/admin', limiter(300), adminRouter);
+  app.use(limiter(300), accountRouter);          // /me/kyc, /me/balance, /payouts
   app.use('/public/contests/:slug/otp', limiter(5));
   app.use('/public/contests/:slug/votes', limiter(20));
   app.use('/public/contests/:slug/orders', limiter(20));

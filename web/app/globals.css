@@ -130,3 +130,11 @@ code { background: #e9edf1; padding: .1em .4em; border-radius: 6px; }
 .danger-zone { border-color: #f0c3bd; }
 .authbox { max-width: 420px; margin: 0 auto; padding: 2rem 1rem; } .authbox .brand { display: block; font-size: 1.4rem; margin-bottom: .6rem; } .authbox h1 { font-size: 1.4rem; margin-bottom: .8rem; }
 .check-line { display: flex; gap: .5rem; align-items: flex-start; font-size: .9rem; margin: .8rem 0; } .check-line input { margin-top: .25rem; }
+
+/* ===== Bloc 5 : photos, compte, administration ===== */
+.thumbcell { white-space: nowrap; } .thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; vertical-align: middle; margin-right: .4rem; background: #dfe5ea; }
+.ph0 { display: inline-grid; place-items: center; color: #fff; font-weight: 700; background: color-mix(in srgb, var(--primary) 70%, #000); } .filebtn { cursor: pointer; }
+.bannerprev { width: 100%; max-height: 180px; object-fit: cover; border-radius: 12px; margin-bottom: .6rem; }
+.stat.warn { border-color: #e0a100; background: #fff9e6; } .stat.warn b { color: #b87400; }
+.docs { display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0; }
+.shell .who a { text-decoration: none; padding: .3rem .5rem; border-radius: 8px; } .shell .who a:hover, .who a:hover { background: #eef2f5; }

@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config, isProd } from './config.js';
 import { HttpError } from './http.js';
 import type { Db } from './db.js';
-import { withTx } from './db.js';
+import { q, withTx } from './db.js';
 
 declare global {
   namespace Express { interface Request { user?: { id: string; role: 'creator' | 'admin' } } }
@@ -92,11 +92,13 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     next();
   } catch { next(new HttpError(401, 'Session expirée', 'unauthenticated')); }
 }
+/** Le rôle est relu en base à chaque requête : retirer le rôle administrateur est immédiat (pas d'attente de l'expiration du jeton). */
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   requireAuth(req, res, (err?: any) => {
     if (err) return next(err);
-    if (req.user?.role !== 'admin') return next(new HttpError(403, 'Réservé aux administrateurs', 'forbidden'));
-    next();
+    q('SELECT role FROM users WHERE id = $1 AND deleted_at IS NULL', [req.user!.id])
+      .then((r) => (r.rows[0]?.role === 'admin' ? next() : next(new HttpError(403, 'Réservé aux administrateurs', 'forbidden'))))
+      .catch(next);
   });
 }
 export const randomToken = () => randomBytes(24).toString('base64url');

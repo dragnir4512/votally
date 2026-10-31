@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { api, ApiError } from '../../lib/client';
+import { mediaUrl } from '../../lib/format';
+import { uploadFile } from '../../lib/upload';
 import { parseBulk, type MyCandidate, type MyContest } from '../../lib/creator';
 
 export default function CandidatesTab({ contest, candidates, canEdit, reload }: { contest: MyContest; candidates: MyCandidate[]; canEdit: boolean; reload: () => Promise<void> }) {
@@ -14,6 +16,7 @@ export default function CandidatesTab({ contest, candidates, canEdit, reload }: 
   const addOne = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api(base, { body: { name: name.trim(), description: desc.trim() || null } }); setName(''); setDesc(''); }); };
   const addBulk = () => { const list = parseBulk(bulk); if (!list.length) return; run(async () => { await api(base, { body: list }); setBulk(''); }); };
   const save = () => edit && run(async () => { await api(`${base}/${edit.id}`, { method: 'PATCH', body: { name: edit.name.trim(), description: edit.description.trim() || null } }); setEdit(null); });
+  const photo = (c: MyCandidate, file: File | undefined) => file && run(() => uploadFile(`${base}/${c.id}/image`, file));
   const toggle = (c: MyCandidate) => run(() => api(`${base}/${c.id}`, { method: 'PATCH', body: { isActive: !c.isActive } }));
   const remove = (c: MyCandidate) => { if (window.confirm(`Supprimer « ${c.name} » ?`)) run(() => api(`${base}/${c.id}`, { method: 'DELETE' })); };
 
@@ -21,12 +24,14 @@ export default function CandidatesTab({ contest, candidates, canEdit, reload }: 
     <section>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="tablewrap"><table className="table">
-        <thead><tr><th>N°</th><th>Nom</th><th>Statut</th>{canEdit && <th />}</tr></thead>
+        <thead><tr><th>N°</th><th>Photo</th><th>Nom</th><th>Statut</th>{canEdit && <th />}</tr></thead>
         <tbody>
-          {candidates.length === 0 && <tr><td colSpan={4} className="muted">Aucun candidat pour l&apos;instant.</td></tr>}
+          {candidates.length === 0 && <tr><td colSpan={5} className="muted">Aucun candidat pour l&apos;instant.</td></tr>}
           {candidates.map((c) => (
             <tr key={c.id} className={c.isActive ? '' : 'off'}>
               <td>{c.number}</td>
+              <td className="thumbcell">{mediaUrl(c.imageKey) ? <img className="thumb" src={mediaUrl(c.imageKey)!} alt="" width={48} height={48} /> : <span className="thumb ph0" aria-hidden>{c.name.slice(0, 1)}</span>}
+                {canEdit && <label className="btn btn-ghost sm filebtn">{c.imageKey ? 'Changer' : 'Ajouter'}<input type="file" accept="image/*" hidden onChange={(e) => { photo(c, e.target.files?.[0]); e.target.value = ''; }} /></label>}</td>
               <td>{edit?.id === c.id
                 ? <div className="stack"><input className="input" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} aria-label="Nom" />
                     <input className="input" value={edit.description} onChange={(e) => setEdit({ ...edit, description: e.target.value })} aria-label="Description" placeholder="Description" /></div>
@@ -52,7 +57,7 @@ export default function CandidatesTab({ contest, candidates, canEdit, reload }: 
             <label className="field"><span>Nom *</span><input className="input" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></label>
             <label className="field"><span>Description</span><input className="input" maxLength={2000} value={desc} onChange={(e) => setDesc(e.target.value)} /></label>
             <button className="btn btn-primary" type="submit" disabled={busy || !name.trim()}>Ajouter</button>
-            <p className="muted small">Les photos des candidats seront disponibles dans une prochaine version.</p>
+            <p className="muted small">Ajoute les photos depuis la liste ci-dessus après avoir créé les candidats (JPEG, PNG ou WebP, 8 Mo maximum ; recadrées automatiquement en carré).</p>
           </form>
           <div className="panel">
             <h3>Importer une liste</h3>

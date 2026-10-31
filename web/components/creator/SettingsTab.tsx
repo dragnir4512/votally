@@ -2,6 +2,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../lib/client';
+import { mediaUrl } from '../../lib/format';
+import { uploadFile } from '../../lib/upload';
 import { formFromContest, xaf, type MyContest, type Pack } from '../../lib/creator';
 import ContestForm from './ContestForm';
 
@@ -25,9 +27,21 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
     try { await api(`/contests/${contest.id}`, { method: 'DELETE' }); router.push('/espace'); } catch (err) { setError(err instanceof ApiError ? err.message : 'Erreur'); }
   };
 
+  const banner = async (file: File | undefined) => {
+    if (!file) return; setError(null);
+    try { await uploadFile(`/contests/${contest.id}/banner`, file); await reload(); } catch (err) { setError(err instanceof ApiError ? err.message : 'Erreur'); }
+  };
+
   if (!canEdit) return <p className="muted">Seuls le propriétaire et les gestionnaires peuvent modifier les paramètres.</p>;
   return (
     <section>
+      <div className="panel">
+        <h3>Bannière</h3>
+        {contest.bannerKey && <img className="bannerprev" src={mediaUrl(contest.bannerKey)!} alt="Bannière du concours" />}
+        <label className="btn btn-outline sm filebtn">{contest.bannerKey ? 'Changer la bannière' : 'Ajouter une bannière'}<input type="file" accept="image/*" hidden onChange={(e) => { banner(e.target.files?.[0]); e.target.value = ''; }} /></label>
+        <p className="muted small">Image large (idéalement 1600×600). Recadrée automatiquement.</p>
+        {error && <p className="error" role="alert">{error}</p>}
+      </div>
       <div className="panel">
         <ContestForm initial={formFromContest(contest)} locked={contest.status !== 'draft'} existingTheme={contest.theme} submitLabel="Enregistrer"
           onSubmit={async (body) => { await api(`/contests/${contest.id}`, { method: 'PATCH', body }); await reload(); }} />

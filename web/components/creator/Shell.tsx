@@ -11,7 +11,7 @@ function Header() {
   return (
     <header className="top"><div className="top-in">
       <Link href="/espace" className="brand">VOTALLY</Link>
-      <nav className="who"><span className="muted small">{me.fullName ?? me.email ?? me.phone}</span>
+      <nav className="who"><Link href="/espace" className="small">Mes concours</Link><Link href="/espace/compte" className="small">Mon compte</Link>{me.role === 'admin' && <Link href="/admin" className="small">Administration</Link>}
         <button type="button" className="btn btn-ghost" onClick={logout}>Déconnexion</button></nav>
     </div></header>
   );

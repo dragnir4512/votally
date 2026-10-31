@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { api } from './client';
 import type { Me } from './creator';
 
-const MeContext = createContext<Me | null>(null);
+export const MeContext = createContext<Me | null>(null);
 export const useMe = () => useContext(MeContext)!;
 
 /** Protège une page : sans session valide, redirige vers /connexion?next=... */

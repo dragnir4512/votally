@@ -10,7 +10,7 @@ export interface MyContest {
   status: Status; voteType: VoteType; votePriceXaf: number; startsAt: string | null; endsAt: string | null;
   visibility: 'public' | 'private'; hasPassword: boolean; resultsDisplay: 'realtime' | 'on_close' | 'hidden';
   maxChoicesPerVote: number; freeVotesPerPeriod: number; freeVotePeriodHours: number; defaultLocale: 'fr' | 'en';
-  theme: Record<string, unknown>; myRole?: Role; candidatesCount?: number; totalVotes?: number;
+  theme: Record<string, unknown>; bannerKey?: string | null; myRole?: Role; candidatesCount?: number; totalVotes?: number;
 }
 export interface MyCandidate { id: string; number: number; name: string; description: string | null; imageKey: string | null; isActive: boolean }
 export interface Dashboard {
@@ -18,10 +18,14 @@ export interface Dashboard {
   grossXaf?: number; commissionXaf?: number; netXaf?: number; balanceXaf?: number;
 }
 export interface Pack { id: string; label: string | null; votesCount: number; priceXaf: number }
+export interface Balance { totalXaf: number; withdrawableXaf: number; inFlightXaf: number; lockedXaf: number; minPayoutXaf: number; delayHours: number; kycStatus: string }
+export interface Kyc { id: string; type: 'individual' | 'organization'; legalName: string; idDocumentType: string; payoutMethod: 'mtn_momo' | 'orange_money'; payoutPhoneMasked: string; payoutAccountName: string; status: 'pending' | 'approved' | 'rejected'; rejectionReason: string | null; submittedAt: string }
+export interface PayoutRow { id: string; amountXaf: number; feeXaf: number; netXaf: number; status: 'requested' | 'processing' | 'succeeded' | 'failed' | 'cancelled'; failureReason: string | null; requestedAt: string; destinationPhoneMasked: string }
 export interface Member { id: string; role: Role; status: 'invited' | 'active'; fullName: string | null; email: string | null }
 
 export const STATUS_LABEL: Record<Status, string> = { draft: 'Brouillon', active: 'En cours', paused: 'En pause', closed: 'Terminé', archived: 'Archivé' };
 export const VOTE_TYPE_LABEL: Record<VoteType, string> = { free: 'Gratuit', paid: 'Payant', mixed: 'Mixte' };
+export const PAYOUT_STATUS: Record<string, string> = { requested: 'Demandé', processing: 'En cours', succeeded: 'Envoyé', failed: 'Échoué', cancelled: 'Annulé' };
 export const ROLE_LABEL: Record<Role, string> = { owner: 'Propriétaire', manager: 'Gestionnaire', viewer: 'Observateur' };
 
 export const xaf = (n: number | undefined) => `${new Intl.NumberFormat('fr-FR').format(n ?? 0)} FCFA`;
