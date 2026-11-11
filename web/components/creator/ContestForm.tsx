@@ -58,6 +58,7 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
     <form className="form" onSubmit={submit}>
       <L label="Nom du concours *"><input className="input" required minLength={3} maxLength={120} value={v.name} onChange={(e) => set('name', e.target.value)} placeholder="Miss Yaoundé 2026" /></L>
       <L label="Organisateur"><input className="input" maxLength={120} value={v.organizerName} onChange={(e) => set('organizerName', e.target.value)} placeholder="Nom de votre structure" /></L>
+      <L label="Catégorie" hint="Facultatif : beauté, sport, culture, entrepreneuriat…"><input className="input" maxLength={80} value={v.category} onChange={(e) => set('category', e.target.value)} placeholder="Ex. : Beauté et culture" /></L>
       <L label="Description"><textarea className="input" rows={3} maxLength={5000} value={v.description} onChange={(e) => set('description', e.target.value)} /></L>
       <L label="Règlement du concours" hint="Obligatoire avant publication."><textarea className="input" rows={4} maxLength={20000} value={v.rules} onChange={(e) => set('rules', e.target.value)} /></L>
 
