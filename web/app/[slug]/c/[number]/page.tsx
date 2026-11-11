@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import ContestView from '../../../../components/ContestView';
+import CandidateProfileView from '../../../../components/CandidateProfileView';
 import PrivateNotice from '../../../../components/PrivateNotice';
 import { linkBase, loadContest } from '../../../../lib/server-api';
 
@@ -22,6 +22,6 @@ export default async function CandidatePage({ params }: Props) {
   if (r.kind === 'notfound') notFound();
   if (r.kind === 'private') return <PrivateNotice />;
   const n = Number(number);
-  if (!r.data.candidates.some((c) => c.number === n)) notFound();
-  return <ContestView {...r.data} base={await linkBase(slug)} focusNumber={n} />;
+  if (!Number.isInteger(n) || !r.data.candidates.some((c) => c.number === n)) notFound();
+  return <CandidateProfileView {...r.data} base={await linkBase(slug)} candidateNumber={n} />;
 }
