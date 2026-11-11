@@ -24,6 +24,8 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
 
   const color = sanitizeColor(contest.theme?.primaryColor, '#D71920');
   const banner = mediaUrl(contest.bannerKey);
+  const logoKey = typeof contest.theme?.logoKey === 'string' ? contest.theme.logoKey : null;
+  const logoUrl = logoKey ? mediaUrl(logoKey) : null;
   const site = (contest.siteContent ?? {}) as Record<string, string | null | undefined>;
   const hasEditorial = Boolean(site.tagline || site.concept || site.objectives || site.eligibility || site.location || site.contactEmail || site.contactPhone || site.websiteUrl || site.instagramUrl || site.facebookUrl);
   const starts = contest.startsAt ? new Date(contest.startsAt).getTime() : null;
@@ -51,7 +53,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
       <header className="public-top">
         <div className="public-top-inner">
           <a className="public-identity" href={base || '/'} aria-label={contest.name}>
-            <span className="public-identity-mark">{(contest.organizerName || contest.name).trim().charAt(0).toUpperCase()}</span>
+            {logoUrl ? <img className="public-identity-logo" src={logoUrl} alt="" /> : <span className="public-identity-mark">{(contest.organizerName || contest.name).trim().charAt(0).toUpperCase()}</span>}
             <span className="public-identity-name">{contest.organizerName || contest.name}</span>
           </a>
           <div className="public-top-actions">
