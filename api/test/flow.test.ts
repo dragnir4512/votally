@@ -69,6 +69,23 @@ describe('Authentification', () => {
 });
 
 describe('Concours : règles métier', () => {
+  it('impose un mot de passe à tout concours privé, à la création comme à la modification', async () => {
+    const { agent } = await signup();
+    const missing = await agent.post('/contests').send({ name: `Privé sans mot de passe ${rnd()}`, visibility: 'private' });
+    expect(missing.status).toBe(400);
+
+    const created = await agent.post('/contests').send({ name: `Privatisation ${rnd()}` });
+    expect(created.status).toBe(201);
+    const id = created.body.contest.id as string;
+    expect((await agent.patch(`/contests/${id}`).send({ visibility: 'private' })).status).toBe(422);
+    const secured = await agent.patch(`/contests/${id}`).send({ visibility: 'private', accessPassword: 'secret1', rules: 'Règlement' });
+    expect(secured.status).toBe(200);
+    await agent.post(`/contests/${id}/candidates`).send([{ name: 'Alice' }, { name: 'Bella' }]).expect(201);
+    await agent.post(`/contests/${id}/actions/activate`).expect(200);
+    const slug = secured.body.contest.slug as string;
+    expect((await request(app).get(`/public/contests/${slug}`)).status).toBe(401);
+    expect((await request(app).get(`/public/contests/${slug}`).set('x-contest-password', 'secret1')).status).toBe(200);
+  });
   it('prix minimum, slug réservé, verrous après lancement, activation', async () => {
     const { agent } = await signup();
     expect((await agent.post('/contests').send({ name: 'Trop bas', voteType: 'paid', votePriceXaf: 50 })).body.error.message).toMatch(/minimum/);
