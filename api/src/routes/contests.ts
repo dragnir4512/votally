@@ -81,7 +81,7 @@ const contestFields = z.object({
     ctx.addIssue({ code: 'custom', path: ['endsAt'], message: 'La date de fin doit être postérieure à la date de début.' });
   }
   if (b.voteType !== 'free' && b.votePriceXaf < 100) {
-    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Le prix d’un vote payant doit être d’au moins 100 FCFA.' });
+    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Le prix minimum d’un vote payant est de 100 FCFA.' });
   }
   if (b.voteType === 'free' && b.votePriceXaf !== 0) {
     ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Un concours gratuit ne peut pas avoir de prix de vote.' });
@@ -92,7 +92,7 @@ const contestPatch = z.object(contestShape).partial().superRefine((b, ctx) => {
     ctx.addIssue({ code: 'custom', path: ['endsAt'], message: 'La date de fin doit être postérieure à la date de début.' });
   }
   if (b.voteType !== undefined && b.voteType !== 'free' && b.votePriceXaf !== undefined && b.votePriceXaf < 100) {
-    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Le prix d’un vote payant doit être d’au moins 100 FCFA.' });
+    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Le prix minimum d’un vote payant est de 100 FCFA.' });
   }
   if (b.voteType === 'free' && b.votePriceXaf !== undefined && b.votePriceXaf !== 0) {
     ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Un concours gratuit ne peut pas avoir de prix de vote.' });
@@ -172,7 +172,7 @@ contestsRouter.patch('/:id', ah(async (req, res) => {
     throw new HttpError(422, 'Un concours gratuit ne peut pas avoir de prix de vote.', 'invalid_vote_price');
   }
   if (nextVoteType !== 'free' && nextVotePrice < 100) {
-    throw new HttpError(422, 'Le prix d’un vote payant doit être d’au moins 100 FCFA.', 'invalid_vote_price');
+    throw new HttpError(422, 'Le prix minimum d’un vote payant est de 100 FCFA.', 'invalid_vote_price');
   }
   const nextVisibility = b.visibility ?? current.visibility;
   const hasNextPassword = b.accessPassword === undefined ? Boolean(current.access_password_hash) : Boolean(b.accessPassword);
