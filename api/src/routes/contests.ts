@@ -46,7 +46,18 @@ const contestShape = {
   freeVotePeriodHours: z.number().int().min(1).max(720),
   defaultLocale: z.enum(['fr', 'en']),
   theme: z.record(z.string(), z.any()),
-  siteContent: z.record(z.string(), z.any()).default({}),
+  siteContent: z.object({
+    tagline: z.string().max(180).nullish(),
+    concept: z.string().max(5000).nullish(),
+    objectives: z.string().max(3000).nullish(),
+    location: z.string().max(180).nullish(),
+    eligibility: z.string().max(2000).nullish(),
+    contactEmail: z.string().email().max(254).nullish(),
+    contactPhone: z.string().max(32).nullish(),
+    websiteUrl: z.string().url().refine((v) => /^https?:\/\//i.test(v), 'URL HTTP(S) requise').max(500).nullish(),
+    instagramUrl: z.string().url().refine((v) => /^https?:\/\//i.test(v), 'URL HTTP(S) requise').max(500).nullish(),
+    facebookUrl: z.string().url().refine((v) => /^https?:\/\//i.test(v), 'URL HTTP(S) requise').max(500).nullish(),
+  }).default({}),
 };
 // Création : les valeurs par défaut s'appliquent ici seulement.
 const contestFields = z.object({
