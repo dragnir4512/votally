@@ -22,7 +22,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
     if (focus) document.getElementById(`c${focus.number}`)?.scrollIntoView({ block: 'center' });
   }, [focus]);
 
-  const color = sanitizeColor(contest.theme?.primaryColor, '#0E7C66');
+  const color = sanitizeColor(contest.theme?.primaryColor, '#D71920');
   const banner = mediaUrl(contest.bannerKey);
   const starts = contest.startsAt ? new Date(contest.startsAt).getTime() : null;
   const ends = contest.endsAt ? new Date(contest.endsAt).getTime() : null;
@@ -42,40 +42,65 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
   const chosen = useMemo(() => selected.map((id) => candidates.find((c) => c.id === id)!).filter(Boolean), [selected, candidates]);
   const pageUrl = origin ? `${origin}${base}` : '';
   const shareText = t('shareText', { name: focus?.name ?? contest.name, contest: contest.name });
+  const pageStyle = { '--primary': color, '--contest-accent': color } as CSSProperties;
 
   return (
-    <div className="page" style={{ '--primary': color } as CSSProperties}>
-      <header className="top">
-        <div className="top-in">
-          <span className="brand">VOTALLY</span>
-          <div className="lang" role="group" aria-label="Language">
-            <button type="button" className={lang === 'fr' ? 'on' : ''} onClick={() => setLang('fr')}>FR</button>
-            <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>EN</button>
+    <div className="page public-contest" style={pageStyle}>
+      <header className="public-top">
+        <div className="public-top-inner">
+          <a className="public-identity" href={base || '/'} aria-label={contest.name}>
+            <span className="public-identity-mark">{(contest.organizerName || contest.name).trim().charAt(0).toUpperCase()}</span>
+            <span className="public-identity-name">{contest.organizerName || contest.name}</span>
+          </a>
+          <div className="public-top-actions">
+            <div className="lang" role="group" aria-label="Language">
+              <button type="button" className={lang === 'fr' ? 'on' : ''} onClick={() => setLang('fr')}>FR</button>
+              <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>EN</button>
+            </div>
+            <a className="public-share-link" href="#partager">{t('share')}</a>
           </div>
         </div>
       </header>
 
-      <section className="hero" style={banner ? { backgroundImage: `linear-gradient(#0008,#000a), url(${banner})` } : undefined}>
-        <h1>{contest.name}</h1>
-        {contest.organizerName && <p className="by">{t('organizedBy', { name: contest.organizerName })}</p>}
-        {statusLine && <p className={`status${canVote ? ' live' : ''}`}>{statusLine}</p>}
-        {contest.voteType !== 'free' && <p className="by">{t('pricePerVote', { price: formatXaf(contest.votePriceXaf, lang) })}</p>}
+      <section className={`public-cover${banner ? ' has-banner' : ''}`} style={banner ? { backgroundImage: `linear-gradient(90deg, #101014e8 0%, #101014a8 55%, #10101440 100%), url("${banner}")` } : undefined}>
+        <div className="public-cover-inner">
+          <div className="public-cover-copy">
+            <span className="public-overline">{contest.organizerName || 'CONCOURS'}</span>
+            <h1>{contest.name}</h1>
+            {contest.description && <p>{contest.description}</p>}
+            <div className="public-cover-meta">
+              {statusLine && <span className={`public-status${canVote ? ' live' : ''}`}><i />{statusLine}</span>}
+              {contest.voteType !== 'free' && <span>{t('pricePerVote', { price: formatXaf(contest.votePriceXaf, lang) })}</span>}
+              <span>{candidates.length} {t('candidates').toLowerCase()}</span>
+            </div>
+            {canVote && <a className="public-cover-cta" href="#participants" onClick={() => setTab('candidates')}>{t('candidates')} <span>↓</span></a>}
+          </div>
+          <div className="public-cover-side" aria-hidden="true"><span className="public-cover-number">01</span><span className="public-cover-line" /></div>
+        </div>
       </section>
 
-      <main className="main">
-        {contest.description && <p className="desc">{contest.description}</p>}
-        {contest.rules && <details className="rules"><summary>{t('rules')}</summary><p>{contest.rules}</p></details>}
-        {pageUrl && <ShareBar url={pageUrl} text={shareText} t={t} />}
+      <main className="public-main">
+        <div className="public-main-head">
+          <div><span className="public-section-kicker">LE CONCOURS</span><h2>{focus ? focus.name : contest.name}</h2>
+            <p>{focus ? (focus.description || contest.description || '') : (contest.organizerName ? `Organisé par ${contest.organizerName}` : 'Découvrez les participants et prenez part au vote.')}</p>
+          </div>
+          <div id="partager" className="public-share-area">{pageUrl && <ShareBar url={pageUrl} text={shareText} t={t} />}</div>
+        </div>
 
-        <div className="tabs big" role="tablist">
-          <button role="tab" aria-selected={tab === 'candidates'} className={tab === 'candidates' ? 'on' : ''} onClick={() => setTab('candidates')} type="button">{t('candidates')}</button>
-          <button role="tab" aria-selected={tab === 'results'} className={tab === 'results' ? 'on' : ''} onClick={() => setTab('results')} type="button">{t('results')}</button>
+        {contest.rules && <details className="rules public-rules"><summary>{t('rules')}</summary><p>{contest.rules}</p></details>}
+
+        <div className="public-content-bar">
+          <div className="public-tabs" role="tablist" aria-label="Contenu du concours">
+            <button role="tab" aria-selected={tab === 'candidates'} className={tab === 'candidates' ? 'on' : ''} onClick={() => setTab('candidates')} type="button"><span>01</span>{t('candidates')}</button>
+            <button role="tab" aria-selected={tab === 'results'} className={tab === 'results' ? 'on' : ''} onClick={() => setTab('results')} type="button"><span>02</span>{t('results')}</button>
+          </div>
+          {tab === 'candidates' && <span className="public-count">{candidates.length} {t('candidates').toLowerCase()}</span>}
         </div>
 
         {tab === 'candidates' ? (
           <>
-            {canVote && contest.maxChoicesPerVote > 1 && <p className="muted small">{t('selectHint', { n: contest.maxChoicesPerVote })}</p>}
-            <div className="grid">
+            {canVote && contest.maxChoicesPerVote > 1 && <p className="muted small public-select-hint">{t('selectHint', { n: contest.maxChoicesPerVote })}</p>}
+            <div className="grid public-candidate-grid" id="participants">
               {candidates.map((c) => (
                 <CandidateCard key={c.id} c={c} t={t} canVote={canVote} selected={selected.includes(c.id)}
                   highlight={c.number === focusNumber} onToggle={() => toggle(c.id)} href={`${base}/c/${c.number}`} />
@@ -83,14 +108,23 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
             </div>
           </>
         ) : (
-          <Results slug={contest.slug} realtime={contest.resultsDisplay === 'realtime' && !over} t={t} err={err} />
+          <section className="public-results-panel"><div><span className="public-section-kicker">CLASSEMENT</span><h3>{t('results')}</h3></div>
+            <Results slug={contest.slug} realtime={contest.resultsDisplay === 'realtime' && !over} t={t} err={err} />
+          </section>
         )}
       </main>
 
-      <footer className="foot">{t('poweredBy')}</footer>
+      <footer className="public-footer">
+        <div className="public-footer-inner"><div className="public-footer-brand"><span className="public-identity-mark">V</span><span>{contest.name}</span></div>
+          <span>{contest.organizerName ? `Organisé par ${contest.organizerName}` : 'Concours en ligne'}</span>
+          <a href="https://votally.com" target="_blank" rel="noopener noreferrer">Propulsé par VOTALLY</a>
+        </div>
+      </footer>
 
       {canVote && chosen.length > 0 && !sheet && (
-        <div className="bar-fixed"><button className="btn btn-primary block" type="button" onClick={() => setSheet(true)}>{t('voteFor', { n: chosen.length })}</button></div>
+        <div className="bar-fixed public-vote-bar"><div className="public-vote-summary"><strong>{chosen.length}</strong><span>{chosen.length > 1 ? 'participants sélectionnés' : 'participant sélectionné'}</span></div>
+          <button className="btn btn-primary block" type="button" onClick={() => setSheet(true)}>{t('voteFor', { n: chosen.length })} <span aria-hidden>↗</span></button>
+        </div>
       )}
       {sheet && (
         <VoteSheet contest={contest} packs={packs} selected={chosen} lang={lang} tt={{ t, err }}
