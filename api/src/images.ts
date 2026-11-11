@@ -4,11 +4,11 @@ import { HttpError } from './http.js';
 const LIMIT = { limitInputPixels: 40_000_000 };       // refuse les « bombes » de décompression
 
 /** Photo publique : lecture sûre, rotation EXIF appliquée puis métadonnées supprimées, recadrage et conversion WebP. */
-export async function processImage(buf: Buffer, kind: 'candidate' | 'banner'): Promise<Buffer> {
+export async function processImage(buf: Buffer, kind: 'candidate' | 'banner' | 'logo'): Promise<Buffer> {
   let format: string | undefined;
   try { format = (await sharp(buf, LIMIT).metadata()).format; } catch { throw new HttpError(415, 'Image illisible', 'bad_image'); }
   if (!format || !['jpeg', 'png', 'webp'].includes(format)) throw new HttpError(415, 'Formats acceptés : JPEG, PNG, WebP', 'bad_image');
-  const [width, height] = kind === 'candidate' ? [800, 800] : [1600, 600];
+  const [width, height] = kind === 'candidate' ? [800, 800] : kind === 'logo' ? [600, 600] : [1600, 600];
   return sharp(buf, LIMIT).rotate().resize({ width, height, fit: 'cover' }).webp({ quality: 80 }).toBuffer();
 }
 
