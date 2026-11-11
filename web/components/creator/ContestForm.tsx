@@ -18,7 +18,37 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
   const free = v.voteType !== 'paid';
 
   const submit = async (e: React.FormEvent) => {
-    e.preventDefault(); setBusy(true); setError(null);
+    e.preventDefault();
+    setError(null);
+    const price = Number(v.votePriceXaf);
+    const choices = Number(v.maxChoicesPerVote);
+    const freeVotes = Number(v.freeVotesPerPeriod);
+    const period = Number(v.freeVotePeriodHours);
+    if (v.startsAt && v.endsAt && new Date(v.endsAt).getTime() <= new Date(v.startsAt).getTime()) {
+      setError('La date de fin doit être postérieure à la date de début.');
+      return;
+    }
+    if (!locked && paid && (!Number.isInteger(price) || price < 100)) {
+      setError('Le prix d’un vote payant doit être un nombre entier d’au moins 100 FCFA.');
+      return;
+    }
+    if (!Number.isInteger(choices) || choices < 1 || choices > 50) {
+      setError('Le nombre maximum de candidats par vote doit être compris entre 1 et 50.');
+      return;
+    }
+    if (free && (!Number.isInteger(freeVotes) || freeVotes < 0 || freeVotes > 100)) {
+      setError('Le nombre de votes gratuits doit être compris entre 0 et 100.');
+      return;
+    }
+    if (free && (!Number.isInteger(period) || period < 1 || period > 720)) {
+      setError('La période des votes gratuits doit être comprise entre 1 et 720 heures.');
+      return;
+    }
+    if (v.visibility === 'private' && !hasExistingPassword && v.accessPassword.trim().length < 4) {
+      setError('Un mot de passe de 4 caractères minimum est obligatoire pour un concours privé.');
+      return;
+    }
+    setBusy(true);
     try { await onSubmit(buildPayload(v, { locked, existingTheme })); setSaved(true); }
     catch (err) { setError(err instanceof ApiError ? err.message : 'Une erreur est survenue'); }
     finally { setBusy(false); }
@@ -39,19 +69,19 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
           ))}
         </div>
         {paid && <L label="Prix d'un vote (FCFA)" hint="Un minimum fixé par la plateforme s'applique (100 FCFA). Commission VOTALLY : 8 %.">
-          <input className="input" type="number" min={1} step={1} inputMode="numeric" value={v.votePriceXaf} onChange={(e) => set('votePriceXaf', e.target.value)} /></L>}
-        <L label="Candidats par vote (maximum)"><input className="input" type="number" min={1} max={50} value={v.maxChoicesPerVote} onChange={(e) => set('maxChoicesPerVote', e.target.value)} /></L>
+          <input className="input" type="number" min={100} step={1} inputMode="numeric" required value={v.votePriceXaf} onChange={(e) => set('votePriceXaf', e.target.value)} /></L>}
+        <L label="Candidats par vote (maximum)"><input className="input" type="number" min={1} max={50} step={1} required value={v.maxChoicesPerVote} onChange={(e) => set('maxChoicesPerVote', e.target.value)} /></L>
       </fieldset>
 
       {free && (
         <div className="two">
-          <L label="Votes gratuits par numéro"><input className="input" type="number" min={0} max={100} value={v.freeVotesPerPeriod} onChange={(e) => set('freeVotesPerPeriod', e.target.value)} /></L>
-          <L label="…toutes les (heures)"><input className="input" type="number" min={1} max={720} value={v.freeVotePeriodHours} onChange={(e) => set('freeVotePeriodHours', e.target.value)} /></L>
+          <L label="Votes gratuits par numéro"><input className="input" type="number" min={0} max={100} step={1} required value={v.freeVotesPerPeriod} onChange={(e) => set('freeVotesPerPeriod', e.target.value)} /></L>
+          <L label="…toutes les (heures)"><input className="input" type="number" min={1} max={720} step={1} required value={v.freeVotePeriodHours} onChange={(e) => set('freeVotePeriodHours', e.target.value)} /></L>
         </div>
       )}
       <div className="two">
         <L label="Début du vote"><input className="input" type="datetime-local" value={v.startsAt} onChange={(e) => set('startsAt', e.target.value)} /></L>
-        <L label="Fin du vote" hint="Le concours se clôture automatiquement."><input className="input" type="datetime-local" value={v.endsAt} onChange={(e) => set('endsAt', e.target.value)} /></L>
+        <L label="Fin du vote" hint="La date de fin doit être postérieure à la date de début."><input className="input" type="datetime-local" value={v.endsAt} onChange={(e) => set('endsAt', e.target.value)} /></L>
       </div>
       <div className="two">
         <L label="Résultats"><select className="input" value={v.resultsDisplay} onChange={(e) => set('resultsDisplay', e.target.value as FormValues['resultsDisplay'])}>
