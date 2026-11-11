@@ -61,12 +61,20 @@ describe('VoteSheet — vote gratuit', () => {
     await screen.findByText('Patiente une minute avant de redemander un code.');
   });
 
-  it('refuse d\'envoyer le code si plus de candidats que le quota gratuit', () => {
+  it('limite les choix selon maxChoicesPerVote, indépendamment du quota gratuit par période', () => {
     routes = {};
-    sheet(contest({ voteType: 'free', freeVotesPerPeriod: 1 }), cands);
+    sheet(contest({ voteType: 'free', freeVotesPerPeriod: 5, maxChoicesPerVote: 1 }), cands);
     expect(screen.getByText(/tu peux voter pour 1 candidat\(s\) à la fois/)).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
     expect((screen.getByRole('button', { name: /Recevoir mon code/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('autorise plusieurs choix si maxChoicesPerVote le permet même avec un quota périodique de un', () => {
+    routes = {};
+    sheet(contest({ voteType: 'free', votePriceXaf: 0, freeVotesPerPeriod: 1, maxChoicesPerVote: 2 }), cands);
+    fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
+    expect(screen.queryByText(/tu peux voter pour/)).toBeNull();
+    expect((screen.getByRole('button', { name: /Recevoir mon code/ }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
 
