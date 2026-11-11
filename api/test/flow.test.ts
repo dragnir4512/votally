@@ -261,6 +261,16 @@ describe('Modification partielle d\'un concours', () => {
     expect(p.status).toBe(200);
     expect(p.body.contest).toMatchObject({ rules: 'Nouveau règlement', voteType: 'paid', votePriceXaf: 250, maxChoicesPerVote: 3,
       visibility: 'private', hasPassword: true, resultsDisplay: 'on_close', defaultLocale: 'en', freeVotesPerPeriod: 4, theme: { primaryColor: '#123456' } });
+
+    const guarded = await agent.post('/contests').send({
+      name: `Validation PATCH ${rnd()}`, voteType: 'paid', votePriceXaf: 100,
+      startsAt: '2030-01-01T10:00:00.000Z', endsAt: '2030-01-02T10:00:00.000Z',
+    });
+    expect(guarded.status).toBe(201);
+    const guardedId = guarded.body.contest.id as string;
+    expect((await agent.patch(`/contests/${guardedId}`).send({ startsAt: '2030-01-03T10:00:00.000Z' })).status).toBe(422);
+    expect((await agent.patch(`/contests/${guardedId}`).send({ voteType: 'free' })).status).toBe(422);
+    expect((await agent.patch(`/contests/${guardedId}`).send({ votePriceXaf: 50 })).status).toBe(422);
   });
 });
 
