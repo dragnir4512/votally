@@ -59,6 +59,11 @@ const contestFields = z.object({
   freeVotePeriodHours: contestShape.freeVotePeriodHours.default(24),
   defaultLocale: contestShape.defaultLocale.default('fr'),
   theme: contestShape.theme.default({}),
+}).superRefine((b, ctx) => {
+  // Un concours privé doit toujours être protégé : le contrôle public se base sur ce hash.
+  if (b.visibility === 'private' && !b.accessPassword) {
+    ctx.addIssue({ code: 'custom', path: ['accessPassword'], message: 'Un mot de passe est obligatoire pour un concours privé.' });
+  }
 });
 const contestPatch = z.object(contestShape).partial();
 
@@ -121,6 +126,13 @@ contestsRouter.patch('/:id', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
   await needRole(req, id, ['owner', 'manager']);
   const b = contestPatch.parse(req.body) as Record<string, any>;
+  const current = (await q('SELECT visibility, access_password_hash FROM contests WHERE id = $1', [id])).rows[0];
+  if (!current) throw new HttpError(404, 'Concours introuvable', 'not_found');
+  const nextVisibility = b.visibility ?? current.visibility;
+  const hasNextPassword = b.accessPassword === undefined ? Boolean(current.access_password_hash) : Boolean(b.accessPassword);
+  if (nextVisibility === 'private' && !hasNextPassword) {
+    throw new HttpError(422, 'Un mot de passe est obligatoire pour conserver un concours privé.', 'private_password_required');
+  }
   const sets: string[] = []; const vals: unknown[] = [];
   for (const [k, col] of Object.entries(COLUMNS)) {
     if (b[k] === undefined) continue;
