@@ -28,7 +28,11 @@ export async function handleProviderEvent(provider: PaymentProvider, eventId: st
     const v = await provider.verify(providerReference);                           // on ne croit pas le webhook sur parole
     let outcome = v.status as string;
     if (v.status === 'succeeded') {
-      if (v.amountXaf !== undefined && v.amountXaf !== pay.amount_xaf) throw new Error(`Montant incohérent : ${v.amountXaf} reçu, ${pay.amount_xaf} attendu`);
+      // Un paiement n'est confirmé que si l'agrégateur retourne lui-même le montant encaissé.
+      // L'absence du montant ne doit jamais être interprétée comme une validation.
+      if (!Number.isSafeInteger(v.amountXaf) || v.amountXaf !== Number(pay.amount_xaf)) {
+        throw new Error(`Montant absent ou incohérent : ${v.amountXaf ?? 'non fourni'} reçu, ${pay.amount_xaf} attendu`);
+      }
       const r = await withTx(null, (c) => c.query('SELECT confirm_payment_and_votes($1, $2) AS r', [pay.id, providerReference]));
       outcome = r.rows[0].r.status;                                                  // confirmed | already_confirmed | needs_refund
     } else if (v.status === 'failed' || v.status === 'expired') {
