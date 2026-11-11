@@ -67,7 +67,7 @@ export interface FormValues {
 export const emptyForm: FormValues = {
   name: '', description: '', rules: '', organizerName: '', voteType: 'free', votePriceXaf: '100', maxChoicesPerVote: '1',
   freeVotesPerPeriod: '1', freeVotePeriodHours: '24', startsAt: '', endsAt: '', visibility: 'public', accessPassword: '',
-  resultsDisplay: 'realtime', defaultLocale: 'fr', primaryColor: '#0E7C66',
+  resultsDisplay: 'realtime', defaultLocale: 'fr', primaryColor: '#D71920',
 };
 
 export function formFromContest(c: MyContest): FormValues {
@@ -76,7 +76,7 @@ export function formFromContest(c: MyContest): FormValues {
     votePriceXaf: String(c.votePriceXaf || 100), maxChoicesPerVote: String(c.maxChoicesPerVote), freeVotesPerPeriod: String(c.freeVotesPerPeriod),
     freeVotePeriodHours: String(c.freeVotePeriodHours), startsAt: toInput(c.startsAt), endsAt: toInput(c.endsAt), visibility: c.visibility,
     accessPassword: '', resultsDisplay: c.resultsDisplay, defaultLocale: c.defaultLocale,
-    primaryColor: typeof c.theme?.primaryColor === 'string' ? (c.theme.primaryColor as string) : '#0E7C66',
+    primaryColor: typeof c.theme?.primaryColor === 'string' ? (c.theme.primaryColor as string) : '#D71920',
   };
 }
 
