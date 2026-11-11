@@ -54,7 +54,7 @@ const contestShape = {
     eligibility: z.string().max(2000).nullish(),
     contactEmail: z.string().email().max(254).nullish(),
     contactPhone: z.string().max(32).nullish(),
-    websiteUrl: z.string().url().refine((v) => /^https?:\/\//i.test(v), 'URL HTTP(S) requise').max(500).nullish(),
+    websiteUrl: z.string().max(500).url().refine((v) => /^https?:\/\//i.test(v), 'URL HTTP(S) requise').nullish(),
     instagramUrl: z.string().url().refine((v) => /^https?:\/\//i.test(v), 'URL HTTP(S) requise').max(500).nullish(),
     facebookUrl: z.string().url().refine((v) => /^https?:\/\//i.test(v), 'URL HTTP(S) requise').max(500).nullish(),
   }).default({}),
