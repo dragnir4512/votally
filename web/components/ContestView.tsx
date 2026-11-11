@@ -24,6 +24,8 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
 
   const color = sanitizeColor(contest.theme?.primaryColor, '#D71920');
   const banner = mediaUrl(contest.bannerKey);
+  const site = (contest.siteContent ?? {}) as Record<string, string | null | undefined>;
+  const hasEditorial = Boolean(site.tagline || site.concept || site.objectives || site.eligibility || site.location || site.contactEmail || site.contactPhone || site.websiteUrl || site.instagramUrl || site.facebookUrl);
   const starts = contest.startsAt ? new Date(contest.startsAt).getTime() : null;
   const ends = contest.endsAt ? new Date(contest.endsAt).getTime() : null;
   const notStarted = now !== null && starts !== null && now < starts;
@@ -67,6 +69,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
           <div className="public-cover-copy">
             <span className="public-overline">{contest.organizerName || 'CONCOURS'}</span>
             <h1>{contest.name}</h1>
+            {site.tagline && <p className="public-tagline">{site.tagline}</p>}
             {contest.description && <p>{contest.description}</p>}
             <div className="public-cover-meta">
               {statusLine && <span className={`public-status${canVote ? ' live' : ''}`}><i />{statusLine}</span>}
@@ -78,6 +81,35 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
           <div className="public-cover-side" aria-hidden="true"><span className="public-cover-number">01</span><span className="public-cover-line" /></div>
         </div>
       </section>
+
+      {hasEditorial && (
+        <section className="public-editorial" aria-label="Présentation du concours">
+          <div className="public-editorial-grid">
+            {(site.concept || contest.description) && <article className="public-editorial-card public-editorial-concept">
+              <span className="public-section-kicker">LE CONCEPT</span>
+              <h2>À propos du concours</h2>
+              <p>{site.concept || contest.description}</p>
+            </article>}
+            {site.objectives && <article className="public-editorial-card">
+              <span className="public-section-kicker">NOTRE AMBITION</span>
+              <h2>Les objectifs</h2><p>{site.objectives}</p>
+            </article>}
+            {(site.eligibility || site.location) && <article className="public-editorial-card">
+              <span className="public-section-kicker">PARTICIPATION</span><h2>Informations pratiques</h2>
+              {site.location && <p><strong>Lieu :</strong> {site.location}</p>}
+              {site.eligibility && <p><strong>Éligibilité :</strong> {site.eligibility}</p>}
+            </article>}
+            {(site.contactEmail || site.contactPhone || site.websiteUrl || site.instagramUrl || site.facebookUrl) && <article className="public-editorial-card">
+              <span className="public-section-kicker">RESTONS EN CONTACT</span><h2>Contacter l’organisation</h2>
+              {site.contactEmail && <p><a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a></p>}
+              {site.contactPhone && <p><a href={`tel:${site.contactPhone}`}>{site.contactPhone}</a></p>}
+              {site.websiteUrl && <p><a href={site.websiteUrl} target="_blank" rel="noreferrer">Site officiel ↗</a></p>}
+              {site.instagramUrl && <p><a href={site.instagramUrl} target="_blank" rel="noreferrer">Instagram ↗</a></p>}
+              {site.facebookUrl && <p><a href={site.facebookUrl} target="_blank" rel="noreferrer">Facebook ↗</a></p>}
+            </article>}
+          </div>
+        </section>
+      )}
 
       <main className="public-main">
         <div className="public-main-head">
