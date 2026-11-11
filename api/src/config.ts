@@ -25,3 +25,14 @@ if (!parsed.success) {
 export const config = parsed.data;
 export const isProd = config.NODE_ENV === 'production';
 export const isTest = config.NODE_ENV === 'test';
+
+// Garde-fou de production : aucun paiement réel n'est encore intégré.
+// Le simulateur mock ne doit JAMAIS pouvoir être utilisé pour encaisser des votes en production.
+if (isProd && config.PAYMENT_PROVIDER === 'mock') {
+  console.error('Configuration invalide : PAYMENT_PROVIDER=mock est interdit en production. Configure un agrégateur réel avant le déploiement.');
+  process.exit(1);
+}
+if (isProd && config.MOCK_WEBHOOK_SECRET === 'mock-secret-change-me') {
+  console.error('Configuration invalide : MOCK_WEBHOOK_SECRET conserve sa valeur de développement.');
+  process.exit(1);
+}
