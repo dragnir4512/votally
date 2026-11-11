@@ -155,7 +155,8 @@ describe('Concours : règles métier', () => {
   it('prix minimum, slug réservé, verrous après lancement, activation', async () => {
     const { agent } = await signup();
     expect((await agent.post('/contests').send({ name: 'Trop bas', voteType: 'paid', votePriceXaf: 50 })).body.error.message).toMatch(/minimum/);
-    expect((await agent.post('/contests').send({ name: 'Réservé', slug: 'admin' })).status).toBe(422);
+    const reserved = await agent.post('/contests').send({ name: 'Réservé', slug: 'admin' });
+    expect(reserved.status, JSON.stringify(reserved.body)).toBe(422);
 
     const r = await agent.post('/contests').send({ name: `Miss Yaoundé ${rnd()}`, voteType: 'paid', votePriceXaf: 100 });
     const id = r.body.contest.id;
