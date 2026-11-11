@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().default(3000),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
+  DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(5000),
+  DB_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300000).default(30000),
+  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET : 16 caractères minimum'),
   // Poivre des numéros de téléphone : NE JAMAIS le perdre ni le changer (voir HANDOFF.md)
@@ -25,3 +29,14 @@ if (!parsed.success) {
 export const config = parsed.data;
 export const isProd = config.NODE_ENV === 'production';
 export const isTest = config.NODE_ENV === 'test';
+
+// Garde-fou de production : aucun paiement réel n'est encore intégré.
+// Le simulateur mock ne doit JAMAIS pouvoir être utilisé pour encaisser des votes en production.
+if (isProd && config.PAYMENT_PROVIDER === 'mock') {
+  console.error('Configuration invalide : PAYMENT_PROVIDER=mock est interdit en production. Configure un agrégateur réel avant le déploiement.');
+  process.exit(1);
+}
+if (isProd && config.MOCK_WEBHOOK_SECRET === 'mock-secret-change-me') {
+  console.error('Configuration invalide : MOCK_WEBHOOK_SECRET conserve sa valeur de développement.');
+  process.exit(1);
+}

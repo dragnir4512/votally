@@ -27,6 +27,11 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
     try { await api(`/contests/${contest.id}`, { method: 'DELETE' }); router.push('/espace'); } catch (err) { setError(err instanceof ApiError ? err.message : 'Erreur'); }
   };
 
+  const logo = async (file: File | undefined) => {
+    if (!file) return; setError(null);
+    try { await uploadFile(`/contests/${contest.id}/logo`, file); await reload(); } catch (err) { setError(err instanceof ApiError ? err.message : 'Erreur'); }
+  };
+
   const banner = async (file: File | undefined) => {
     if (!file) return; setError(null);
     try { await uploadFile(`/contests/${contest.id}/banner`, file); await reload(); } catch (err) { setError(err instanceof ApiError ? err.message : 'Erreur'); }
@@ -36,6 +41,12 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
   return (
     <section>
       <div className="panel">
+        <h3>Logo du concours</h3>
+        {typeof contest.theme?.logoKey === 'string' && <img className="contest-logo-preview" src={mediaUrl(contest.theme.logoKey) ?? undefined} alt="Logo du concours" />}
+        <label className="btn btn-outline sm filebtn">{typeof contest.theme?.logoKey === 'string' ? 'Changer le logo' : 'Ajouter un logo'}<input type="file" accept="image/*" hidden onChange={(e) => { logo(e.target.files?.[0]); e.target.value = ''; }} /></label>
+        <p className="muted small">Image carrée, recadrée automatiquement en WebP.</p>
+      </div>
+      <div className="panel">
         <h3>Bannière</h3>
         {contest.bannerKey && <img className="bannerprev" src={mediaUrl(contest.bannerKey)!} alt="Bannière du concours" />}
         <label className="btn btn-outline sm filebtn">{contest.bannerKey ? 'Changer la bannière' : 'Ajouter une bannière'}<input type="file" accept="image/*" hidden onChange={(e) => { banner(e.target.files?.[0]); e.target.value = ''; }} /></label>
@@ -43,7 +54,7 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
         {error && <p className="error" role="alert">{error}</p>}
       </div>
       <div className="panel">
-        <ContestForm initial={formFromContest(contest)} locked={contest.status !== 'draft'} existingTheme={contest.theme} submitLabel="Enregistrer"
+        <ContestForm initial={formFromContest(contest)} locked={contest.status !== 'draft'} existingTheme={contest.theme} hasExistingPassword={contest.hasPassword} submitLabel="Enregistrer"
           onSubmit={async (body) => { await api(`/contests/${contest.id}`, { method: 'PATCH', body }); await reload(); }} />
       </div>
 

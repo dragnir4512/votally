@@ -1,4 +1,5 @@
 import request from 'supertest';
+import sharp from 'sharp';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { mockProvider } from '../src/providers';
@@ -68,11 +69,94 @@ describe('Authentification', () => {
   });
 });
 
+describe('Téléversements', () => {
+  it('accepte le logo de concours et le publie en WebP', async () => {
+    const { agent } = await signup();
+    const created = await agent.post('/contests').send({ name: `Logo test ${rnd()}` });
+    expect(created.status).toBe(201);
+    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 210, g: 20, b: 30 } } }).png().toBuffer();
+
+    const uploaded = await agent.post(`/contests/${created.body.contest.id}/logo`)
+      .set('Content-Type', 'image/png').send(png);
+    expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
+    expect(uploaded.body.logoKey).toMatch(/^[a-f0-9]{32}\.webp$/);
+
+    const metadata = await q('SELECT purpose, visibility, content_type FROM uploads WHERE key = $1', [uploaded.body.logoKey]);
+    expect(metadata.rows[0]).toMatchObject({ purpose: 'contest_logo', visibility: 'public', content_type: 'image/webp' });
+    await request(app).get(`/media/${uploaded.body.logoKey}`).expect('Content-Type', /image\/webp/).expect(200);
+  });
+});
+
+describe('Contenu des mini-sites publics', () => {
+  it('enregistre, modifie et expose le contenu éditorial du concours sans exposer les brouillons', async () => {
+    const { agent } = await signup();
+    const siteContent = {
+      tagline: 'Le talent mérite sa scène',
+      concept: 'Une compétition nationale ouverte aux jeunes talents.',
+      objectives: 'Promouvoir la créativité et la culture.',
+      location: 'Yaoundé, Cameroun',
+      eligibility: '18 ans minimum',
+      contactEmail: 'contact@example.cm',
+      contactPhone: '+237 690000000',
+      websiteUrl: 'https://example.cm',
+      instagramUrl: 'https://instagram.com/example',
+      facebookUrl: null,
+    };
+    const created = await agent.post('/contests').send({
+      name: 'Mini-site éditorial',
+      rules: 'Règlement officiel',
+      siteContent,
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.contest.id as string;
+    await agent.post(`/contests/${id}/candidates`).send([{ name: 'Alice' }, { name: 'Bella' }]).expect(201);
+    await agent.post(`/contests/${id}/actions/activate`).expect(200);
+
+    const publicPage = await request(app).get(`/public/contests/${created.body.contest.slug}`);
+    expect(publicPage.status).toBe(200);
+    expect(publicPage.body.contest.siteContent).toMatchObject({
+      tagline: siteContent.tagline,
+      concept: siteContent.concept,
+      location: siteContent.location,
+      websiteUrl: siteContent.websiteUrl,
+    });
+
+    const patched = await agent.patch(`/contests/${id}`).send({
+      siteContent: { ...siteContent, tagline: 'Une nouvelle saison commence' },
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.contest.siteContent.tagline).toBe('Une nouvelle saison commence');
+
+    const unsafe = await agent.patch(`/contests/${id}`).send({
+      siteContent: { ...siteContent, websiteUrl: 'javascript:alert(1)' },
+    });
+    expect(unsafe.status).toBe(400);
+  });
+});
+
 describe('Concours : règles métier', () => {
+  it('impose un mot de passe à tout concours privé, à la création comme à la modification', async () => {
+    const { agent } = await signup();
+    const missing = await agent.post('/contests').send({ name: `Privé sans mot de passe ${rnd()}`, visibility: 'private' });
+    expect(missing.status).toBe(400);
+
+    const created = await agent.post('/contests').send({ name: `Privatisation ${rnd()}` });
+    expect(created.status).toBe(201);
+    const id = created.body.contest.id as string;
+    expect((await agent.patch(`/contests/${id}`).send({ visibility: 'private' })).status).toBe(422);
+    const secured = await agent.patch(`/contests/${id}`).send({ visibility: 'private', accessPassword: 'secret1', rules: 'Règlement' });
+    expect(secured.status).toBe(200);
+    await agent.post(`/contests/${id}/candidates`).send([{ name: 'Alice' }, { name: 'Bella' }]).expect(201);
+    await agent.post(`/contests/${id}/actions/activate`).expect(200);
+    const slug = secured.body.contest.slug as string;
+    expect((await request(app).get(`/public/contests/${slug}`)).status).toBe(401);
+    expect((await request(app).get(`/public/contests/${slug}`).set('x-contest-password', 'secret1')).status).toBe(200);
+  });
   it('prix minimum, slug réservé, verrous après lancement, activation', async () => {
     const { agent } = await signup();
     expect((await agent.post('/contests').send({ name: 'Trop bas', voteType: 'paid', votePriceXaf: 50 })).body.error.message).toMatch(/minimum/);
-    expect((await agent.post('/contests').send({ name: 'Réservé', slug: 'admin' })).status).toBe(422);
+    const reserved = await agent.post('/contests').send({ name: 'Réservé', slug: 'admin' });
+    expect(reserved.status, JSON.stringify(reserved.body)).toBe(422);
 
     const r = await agent.post('/contests').send({ name: `Miss Yaoundé ${rnd()}`, voteType: 'paid', votePriceXaf: 100 });
     const id = r.body.contest.id;
@@ -82,7 +166,7 @@ describe('Concours : règles métier', () => {
     await agent.post(`/contests/${id}/candidates`).send([{ name: 'A' }, { name: 'B' }]);
     await agent.patch(`/contests/${id}`).send({ rules: 'Règlement' });
     expect((await agent.post(`/contests/${id}/actions/activate`)).status).toBe(200);
-    const locked = await agent.patch(`/contests/${id}`).send({ votePriceXaf: 1, voteType: 'paid' });
+    const locked = await agent.patch(`/contests/${id}`).send({ votePriceXaf: 150, voteType: 'paid' });
     expect(locked.status).toBe(422);
     expect(locked.body.error.message).toMatch(/verrouillés/);
     expect((await agent.patch(`/contests/${id}`).send({ maxChoicesPerVote: 5 })).status).toBe(422);   // migration 008
@@ -108,7 +192,7 @@ describe('Vote payant de bout en bout', () => {
     const { agent } = await signup();
     const c = await createContest(agent, { maxChoicesPerVote: 2 });
     await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
-    const tooMany = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card',
+    const tooMany = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567',
       choices: c.candidates.map((x) => ({ candidateId: x.id, quantity: 1 })) });            // 3 candidats pour un maximum de 2
     expect(tooMany.body.error.code).toBe('too_many_choices');
 
@@ -163,11 +247,11 @@ describe('Vote payant de bout en bout', () => {
     await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
     const pack = (await agent.post(`/contests/${c.id}/packs`).send({ votesCount: 10, priceXaf: 900 })).body.pack;
 
-    const foreign = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card', choices: [{ candidateId: other.candidates[0]!.id, quantity: 1 }] });
+    const foreign = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567', choices: [{ candidateId: other.candidates[0]!.id, quantity: 1 }] });
     expect(foreign.status).toBe(400);
-    const bad = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 4 }] });
+    const bad = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 4 }] });
     expect(bad.body.error.code).toBe('choices_mismatch');
-    const good = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 10 }] });
+    const good = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 10 }] });
     expect(good.body).toMatchObject({ subtotalXaf: 900, feeXaf: 23, totalXaf: 923 });    // 2,5 % de 900 = 22,5 -> arrondi au FCFA supérieur
     expect((await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', choices: [{ candidateId: c.candidates[0]!.id, quantity: 1 }] })).body.error.code).toBe('phone_required');
   });
@@ -244,6 +328,16 @@ describe('Modification partielle d\'un concours', () => {
     expect(p.status).toBe(200);
     expect(p.body.contest).toMatchObject({ rules: 'Nouveau règlement', voteType: 'paid', votePriceXaf: 250, maxChoicesPerVote: 3,
       visibility: 'private', hasPassword: true, resultsDisplay: 'on_close', defaultLocale: 'en', freeVotesPerPeriod: 4, theme: { primaryColor: '#123456' } });
+
+    const guarded = await agent.post('/contests').send({
+      name: `Validation PATCH ${rnd()}`, voteType: 'paid', votePriceXaf: 100,
+      startsAt: '2030-01-01T10:00:00.000Z', endsAt: '2030-01-02T10:00:00.000Z',
+    });
+    expect(guarded.status).toBe(201);
+    const guardedId = guarded.body.contest.id as string;
+    expect((await agent.patch(`/contests/${guardedId}`).send({ startsAt: '2030-01-03T10:00:00.000Z' })).status).toBe(422);
+    expect((await agent.patch(`/contests/${guardedId}`).send({ voteType: 'free' })).status).toBe(422);
+    expect((await agent.patch(`/contests/${guardedId}`).send({ votePriceXaf: 50 })).status).toBe(422);
   });
 });
 

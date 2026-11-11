@@ -27,8 +27,9 @@ export function toCamel<T = any>(row: Record<string, any> | undefined | null): T
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof HttpError) return res.status(err.status).json({ error: { code: err.code, message: err.message } });
   if (err instanceof ZodError) {
-    return res.status(400).json({ error: { code: 'validation', message: 'Données invalides',
-      details: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) } });
+    const details = err.issues.map((i) => ({ path: i.path.join('.'), message: i.message }));
+    const summary = details.slice(0, 3).map((i) => i.message).join(' · ');
+    return res.status(400).json({ error: { code: 'validation', message: summary ? `Données invalides : ${summary}` : 'Données invalides', details } });
   }
   const code: string | undefined = err?.code;
   if (code === '23505') return res.status(409).json({ error: { code: 'conflict', message: 'Cette valeur existe déjà', constraint: err.constraint } });
@@ -38,7 +39,7 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     return res.status(422).json({ error: { code: err.constraint ? 'constraint' : 'business_rule',
       message: err.constraint ? 'Valeurs non conformes aux règles du concours' : err.message, constraint: err.constraint } });
   }
-  if (code === 'P0001') return res.status(400).json({ error: { code: 'rejected', message: err.message } });
+  if (code === 'P0001') return res.status(422).json({ error: { code: 'business_rule', message: err.message } });
   if (err?.type === 'entity.too.large') return res.status(413).json({ error: { code: 'too_large', message: 'Fichier trop volumineux' } });
   if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: { code: 'bad_json', message: 'JSON invalide' } });
   console.error('[erreur]', req.method, req.originalUrl, err);

@@ -36,6 +36,8 @@ const hashCode = (code: string, target: Buffer) => sha256(code + config.PHONE_HA
 /** Émet un code (6 chiffres). Un nouveau code par minute au maximum et par cible. */
 export async function issueOtp(c: Db, purpose: string, channel: 'sms' | 'email', target: string, ip?: string): Promise<string> {
   const th = hashTarget(target);
+  // Sérialise les demandes simultanées pour la même cible : le SELECT + INSERT doit être atomique.
+  await c.query("SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || encode($2, 'hex'), 0))", [purpose, th]);
   const last = await c.query('SELECT created_at FROM otp_codes WHERE purpose = $1 AND target_hash = $2 ORDER BY created_at DESC LIMIT 1', [purpose, th]);
   if (last.rows[0] && Date.now() - new Date(last.rows[0].created_at).getTime() < 60_000) {
     throw new HttpError(429, 'Patiente 60 secondes avant de redemander un code', 'otp_throttled');

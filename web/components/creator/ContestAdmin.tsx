@@ -10,7 +10,13 @@ import TeamTab from './TeamTab';
 import VotesTab from './VotesTab';
 
 type Tab = 'overview' | 'candidates' | 'settings' | 'team' | 'votes';
-const TABS: [Tab, string][] = [['overview', 'Aperçu'], ['candidates', 'Candidats'], ['votes', 'Votes'], ['settings', 'Paramètres'], ['team', 'Équipe']];
+const TABS: { key: Tab; label: string; hint: string; icon: string }[] = [
+  { key: 'overview', label: 'Vue d’ensemble', hint: 'Activité et état du concours', icon: '▦' },
+  { key: 'candidates', label: 'Candidats', hint: 'Profils et participation', icon: '◎' },
+  { key: 'votes', label: 'Votes & résultats', hint: 'Classement et commandes', icon: '↗' },
+  { key: 'settings', label: 'Configuration', hint: 'Informations et règles', icon: '⚙' },
+  { key: 'team', label: 'Équipe', hint: 'Accès et collaborateurs', icon: '♧' },
+];
 
 export function Overview({ contest, candidates, role, reload, goTo }: { contest: MyContest; candidates: MyCandidate[]; role: Role; reload: () => Promise<void>; goTo: (t: Tab) => void }) {
   const [dash, setDash] = useState<Dashboard | null>(null);
@@ -37,32 +43,35 @@ export function Overview({ contest, candidates, role, reload, goTo }: { contest:
   const copy = async (key: string, text: string) => { try { await navigator.clipboard.writeText(text); setCopied(key); } catch { window.prompt('Copie ce lien', text); } };
 
   return (
-    <section>
+    <section className="contest-overview">
       {contest.status === 'draft' && (
-        <div className="panel">
-          <h3>Avant de publier</h3>
-          <ul className="check">{checklist.map((c) => <li key={c.label} className={c.ok ? 'ok' : 'todo'}>{c.ok ? '✓' : '○'} {c.label}</li>)}</ul>
-          <p className="small"><button type="button" className="btn btn-link" onClick={() => goTo('candidates')}>Gérer les candidats</button> · <button type="button" className="btn btn-link" onClick={() => goTo('settings')}>Compléter les paramètres</button></p>
-          {isOwner && <button type="button" className="btn btn-primary" disabled={busy || !checklist.every((c) => c.ok)} onClick={() => act('activate')}>Publier le concours</button>}
+        <div className="panel contest-panel contest-publish-panel">
+          <div className="contest-panel-heading"><div><span className="contest-kicker">PRÉPARATION</span><h3>Prêt à être publié ?</h3><p>Vérifie ces éléments avant d’ouvrir ton concours au public.</p></div><span className="contest-panel-symbol">✓</span></div>
+          <ul className="check contest-checklist">{checklist.map((c) => <li key={c.label} className={c.ok ? 'ok' : 'todo'}>{c.ok ? '✓' : '○'} {c.label}</li>)}</ul>
+          <div className="contest-inline-actions">
+            <button type="button" className="btn btn-link" onClick={() => goTo('candidates')}>Gérer les candidats</button>
+            <button type="button" className="btn btn-link" onClick={() => goTo('settings')}>Compléter les paramètres</button>
+            {isOwner && <button type="button" className="btn btn-primary" disabled={busy || !checklist.every((c) => c.ok)} onClick={() => act('activate')}>{busy ? 'Publication…' : 'Publier le concours'}</button>}
+          </div>
         </div>
       )}
 
       {contest.status !== 'draft' && (
-        <div className="panel">
-          <h3>Adresse du concours</h3>
-          {([['sub', urls.subdomain], ['path', urls.path]] as const).map(([k, u]) => (
-            <div className="linkrow" key={k}><input className="input" readOnly value={u} onFocus={(e) => e.target.select()} aria-label="Adresse du concours" />
+        <div className="panel contest-panel">
+          <div className="contest-panel-heading"><div><span className="contest-kicker">VISIBILITÉ</span><h3>Adresse publique</h3><p>Partage ces liens pour permettre au public de participer.</p></div><span className="contest-panel-symbol">↗</span></div>
+          {([['sub', 'Adresse personnalisée', urls.subdomain], ['path', 'Lien direct', urls.path]] as const).map(([k, label, u]) => (
+            <div className="linkrow contest-linkrow" key={k}><label>{label}</label><input className="input" readOnly value={u} onFocus={(e) => e.target.select()} aria-label={label} />
               <button type="button" className="btn btn-outline sm" onClick={() => copy(k, u)}>{copied === k ? 'Copié ✓' : 'Copier'}</button>
               <a className="btn btn-ghost sm" href={u} target="_blank" rel="noopener noreferrer">Ouvrir</a></div>))}
-          <a className="btn btn-wa sm" target="_blank" rel="noopener noreferrer"
+          <a className="btn btn-wa sm contest-whatsapp" target="_blank" rel="noopener noreferrer"
              href={`https://wa.me/?text=${encodeURIComponent(`Vote au concours « ${contest.name} » : ${urls.subdomain}`)}`}>Partager sur WhatsApp</a>
         </div>
       )}
 
       {isOwner && contest.status !== 'draft' && contest.status !== 'archived' && (
-        <div className="panel">
-          <h3>Gérer le concours</h3>
-          <div className="actions">
+        <div className="panel contest-panel">
+          <div className="contest-panel-heading"><div><span className="contest-kicker">ACTIONS</span><h3>Cycle de vie du concours</h3><p>Les actions disponibles dépendent de son statut actuel.</p></div></div>
+          <div className="actions contest-inline-actions">
             {contest.status === 'active' && <button type="button" className="btn btn-outline" disabled={busy} onClick={() => act('pause')}>Mettre en pause</button>}
             {contest.status === 'paused' && <button type="button" className="btn btn-primary" disabled={busy} onClick={() => act('resume')}>Reprendre</button>}
             {(contest.status === 'active' || contest.status === 'paused') &&
@@ -73,18 +82,19 @@ export function Overview({ contest, candidates, role, reload, goTo }: { contest:
       )}
       {error && <p className="error" role="alert">{error}</p>}
 
-      <div className="stats">
-        <div className="stat"><b>{dash?.validVotes ?? '…'}</b><span>votes valides</span></div>
-        <div className="stat"><b>{dash?.paidVotes ?? '…'}</b><span>votes payants</span></div>
-        <div className="stat"><b>{dash?.freeVotes ?? '…'}</b><span>votes gratuits</span></div>
-        <div className="stat"><b>{dash?.pendingOrders ?? '…'}</b><span>paiements en attente</span></div>
+      <div className="contest-section-title"><div><span className="contest-kicker">PERFORMANCE</span><h3>Indicateurs du concours</h3></div><span className="contest-live-note"><i /> Actualisation automatique</span></div>
+      <div className="stats contest-stats">
+        <div className="stat contest-stat"><span>Votes valides</span><b>{dash?.validVotes ?? '…'}</b><small>Total comptabilisé</small></div>
+        <div className="stat contest-stat"><span>Votes payants</span><b>{dash?.paidVotes ?? '…'}</b><small>Contributions payées</small></div>
+        <div className="stat contest-stat"><span>Votes gratuits</span><b>{dash?.freeVotes ?? '…'}</b><small>Participations gratuites</small></div>
+        <div className="stat contest-stat"><span>Paiements en attente</span><b>{dash?.pendingOrders ?? '…'}</b><small>Commandes à confirmer</small></div>
       </div>
       {!!dash?.openFraudFlags && <p className="notice small">⚠ {dash.openFraudFlags} alerte(s) de fraude à examiner.</p>}
 
       {isOwner && dash && contest.voteType !== 'free' && (
-        <div className="panel">
-          <h3>Finances</h3>
-          <dl className="totals">
+        <div className="panel contest-panel contest-finance">
+          <div className="contest-panel-heading"><div><span className="contest-kicker">SUIVI FINANCIER</span><h3>Finances du concours</h3><p>Vue synthétique des montants générés par les votes.</p></div><span className="contest-panel-symbol">₣</span></div>
+          <dl className="totals contest-finance-totals">
             <div><dt>Votes payés (hors frais)</dt><dd>{xaf(dash.grossXaf)}</dd></div>
             <div><dt>Commission VOTALLY (8 %)</dt><dd>− {xaf(dash.commissionXaf)}</dd></div>
             <div className="grand"><dt>Solde du concours</dt><dd>{xaf(dash.balanceXaf)}</dd></div>
@@ -113,25 +123,48 @@ export default function ContestAdmin({ id }: { id: string }) {
   useEffect(() => { reload(); }, [reload]);
 
   if (missing) return <div className="panel center"><h2>Concours introuvable</h2><Link href="/espace" className="btn btn-primary">Retour à mes concours</Link></div>;
-  if (!contest || !role) return <p className="muted center pad">Chargement…</p>;
+  if (!contest || !role) return <div className="contest-loading"><span className="organizer-spinner" /><p>Chargement de ton espace concours…</p></div>;
   const canEdit = role === 'owner' || role === 'manager';
+  const activeCount = cands.filter((c) => c.isActive).length;
+  const currentTab = TABS.find((item) => item.key === tab) ?? TABS[0];
 
   return (
-    <>
-      <p className="small"><Link href="/espace">← Mes concours</Link></p>
-      <div className="title-row">
-        <h1>{contest.name}</h1>
-        <span className={`badge st-${contest.status}`}>{STATUS_LABEL[contest.status]}</span>
+    <div className="contest-admin">
+      <Link href="/espace" className="contest-back">← <span>Retour à mes concours</span></Link>
+      <header className="contest-hero">
+        <div className="contest-hero-copy">
+          <span className="contest-kicker">ESPACE ORGANISATEUR / CONCOURS</span>
+          <div className="contest-title-line"><h1>{contest.name}</h1><span className={`badge st-${contest.status}`}>{STATUS_LABEL[contest.status]}</span></div>
+          <p>{contest.description || 'Pilote ton concours, suis les participations et configure son fonctionnement depuis cet espace.'}</p>
+          <div className="contest-meta"><span>{VOTE_TYPE_LABEL[contest.voteType]}{contest.voteType !== 'free' && ` · ${xaf(contest.votePriceXaf)} / vote`}</span><span>Ton rôle : {ROLE_LABEL[role]}</span><span>{contest.visibility === 'public' ? 'Concours public' : 'Concours privé'}</span></div>
+        </div>
+        <div className="contest-hero-mark" aria-hidden="true">V.</div>
+      </header>
+
+      <div className="contest-quick-stats">
+        <div><span>Candidats actifs</span><strong>{activeCount}</strong></div>
+        <div><span>Total candidats</span><strong>{cands.length}</strong></div>
+        <div><span>Mode de vote</span><strong>{VOTE_TYPE_LABEL[contest.voteType]}</strong></div>
+        <div><span>Fin du concours</span><strong>{contest.endsAt ? new Date(contest.endsAt).toLocaleDateString('fr-FR', { timeZone: 'Africa/Douala' }) : 'Non définie'}</strong></div>
       </div>
-      <p className="muted small">{VOTE_TYPE_LABEL[contest.voteType]}{contest.voteType !== 'free' && ` · ${xaf(contest.votePriceXaf)} / vote`} · Ton rôle : {ROLE_LABEL[role]}</p>
-      <div className="tabs scroll" role="tablist">
-        {TABS.map(([k, label]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} type="button" onClick={() => setTab(k)}>{label}</button>)}
+
+      <div className="contest-workspace">
+        <nav className="contest-sidebar" aria-label="Navigation du concours">
+          <span className="contest-sidebar-label">GESTION DU CONCOURS</span>
+          {TABS.map((item) => <button key={item.key} type="button" className={tab === item.key ? 'active' : ''} onClick={() => setTab(item.key)} aria-current={tab === item.key ? 'page' : undefined}>
+            <span className="contest-tab-icon">{item.icon}</span><span className="contest-tab-copy"><strong>{item.label}</strong><small>{item.hint}</small></span><span className="contest-tab-arrow">›</span>
+          </button>)}
+          <div className="contest-sidebar-foot"><span className="contest-sidebar-dot" /> Espace sécurisé</div>
+        </nav>
+        <main className="contest-content">
+          <div className="contest-content-heading"><div><span className="contest-kicker">GESTION</span><h2>{currentTab.label}</h2><p>{currentTab.hint}</p></div><span className="contest-role-chip">{ROLE_LABEL[role]}</span></div>
+          {tab === 'overview' && <Overview contest={contest} candidates={cands} role={role} reload={reload} goTo={setTab} />}
+          {tab === 'candidates' && <CandidatesTab contest={contest} candidates={cands} canEdit={canEdit} reload={reload} />}
+          {tab === 'votes' && <VotesTab contestId={contest.id} canSeeOrders={canEdit} />}
+          {tab === 'settings' && <SettingsTab contest={contest} canEdit={canEdit} isOwner={role === 'owner'} reload={reload} />}
+          {tab === 'team' && <TeamTab contestId={contest.id} isOwner={role === 'owner'} />}
+        </main>
       </div>
-      {tab === 'overview' && <Overview contest={contest} candidates={cands} role={role} reload={reload} goTo={setTab} />}
-      {tab === 'candidates' && <CandidatesTab contest={contest} candidates={cands} canEdit={canEdit} reload={reload} />}
-      {tab === 'votes' && <VotesTab contestId={contest.id} canSeeOrders={canEdit} />}
-      {tab === 'settings' && <SettingsTab contest={contest} canEdit={canEdit} isOwner={role === 'owner'} reload={reload} />}
-      {tab === 'team' && <TeamTab contestId={contest.id} isOwner={role === 'owner'} />}
-    </>
+    </div>
   );
 }

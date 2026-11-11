@@ -33,7 +33,7 @@ publicRouter.get('/contests/:slug', ah(async (req, res) => {
     contest: toCamel({ id: c.id, name: c.name, slug: c.slug, description: c.description, rules: c.rules, organizer_name: c.organizer_name,
       status: c.status, vote_type: c.vote_type, vote_price_xaf: c.vote_price_xaf, currency: c.currency, starts_at: c.starts_at, ends_at: c.ends_at,
       max_choices_per_vote: c.max_choices_per_vote, free_votes_per_period: c.free_votes_per_period, free_vote_period_hours: c.free_vote_period_hours,
-      results_display: c.results_display, default_locale: c.default_locale, theme: c.theme, banner_key: c.banner_key }),
+      results_display: c.results_display, default_locale: c.default_locale, theme: c.theme, banner_key: c.banner_key, site_content: c.site_content }),
     candidates: cands.rows.map((x) => toCamel(x)),
     packs: packs.rows.map((x) => toCamel(x)),
   });
@@ -111,12 +111,16 @@ async function priceFor(c: any, body: { packId?: string; choices: { quantity: nu
     votes = p.votes_count; subtotal = p.price_xaf; packId = p.id;
   }
   if (chosen !== votes) throw new HttpError(400, `La répartition (${chosen}) doit totaliser ${votes} vote(s)`, 'choices_mismatch');
+  // Les montants manipulés par JavaScript doivent rester des entiers sûrs avant insertion en base.
+  if (!Number.isSafeInteger(votes) || votes < 1 || !Number.isSafeInteger(subtotal) || subtotal < 1) {
+    throw new HttpError(422, 'Montant ou nombre de votes hors limites.', 'order_amount_out_of_range');
+  }
   return { votes, subtotal, packId };
 }
 
 // ---------- Vote payant : création de la commande + demande de paiement ----------
 const orderSchema = z.object({
-  method: z.enum(['mtn_momo', 'orange_money', 'card']),
+  method: z.enum(['mtn_momo', 'orange_money']),
   phone: z.string().optional(),
   packId: z.string().uuid().optional(),
   choices: choicesSchema,
@@ -139,8 +143,8 @@ publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
   const idem = req.header('idempotency-key')?.slice(0, 100) || null;
   const c = await loadPublicContest(req, req.params.slug as string);
   if (c.status !== 'active' || !['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
-  if (body.method !== 'card' && !body.phone) throw new HttpError(400, 'Numéro Mobile Money requis', 'phone_required');
-  const phone = body.phone ? normalizePhone(body.phone) : null;
+  if (!body.phone) throw new HttpError(400, 'Numéro Mobile Money requis', 'phone_required');
+  const phone = normalizePhone(body.phone);
   assertChoiceCount(c, body.choices);
 
   // Rejeu avec la même clé : on renvoie la commande existante
@@ -166,20 +170,20 @@ publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
          now() + make_interval(mins => COALESCE(setting_int('order_expiry_minutes'), 15)::int))
        RETURNING id, reference, total_xaf, expires_at`,
       [c.id, votes, packId, c.vote_price_xaf, subtotal, fee, subtotal + fee, bps, commission, subtotal - commission,
-       phone ? hashTarget(phone) : null, phone ? maskPhone(phone) : null, req.ip ?? null, req.header('user-agent')?.slice(0, 300) ?? null,
+       hashTarget(phone), maskPhone(phone), req.ip ?? null, req.header('user-agent')?.slice(0, 300) ?? null,
        body.locale ?? null, idem])).rows[0];
     for (const ch of body.choices) {
       await cx.query('INSERT INTO vote_order_choices (order_id, contest_id, candidate_id, quantity) VALUES ($1,$2,$3,$4)', [o.id, c.id, ch.candidateId, ch.quantity]);
     }
     const pay = (await cx.query(
       `INSERT INTO payments (order_id, provider, method, amount_xaf, fee_xaf, payer_phone_masked) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [o.id, provider.name, body.method, subtotal + fee, fee, phone ? maskPhone(phone) : null])).rows[0];
+      [o.id, provider.name, body.method, subtotal + fee, fee, maskPhone(phone)])).rows[0];
     return { order: o, paymentId: pay.id as string, subtotal, fee, total: subtotal + fee, votes };
   });
 
   // Appel à l'agrégateur HORS transaction ; en cas d'échec, le paiement est clos proprement
   try {
-    const { providerReference } = await provider.initiate({ reference: created.order.reference, amountXaf: created.total, method: body.method as PaymentMethod, phone: phone ?? undefined });
+    const { providerReference } = await provider.initiate({ reference: created.order.reference, amountXaf: created.total, method: body.method as PaymentMethod, phone });
     await q(`UPDATE payments SET provider_reference = $2, status = 'pending' WHERE id = $1`, [created.paymentId, providerReference]);
   } catch (e) {
     console.error('[paiement] initiation refusée', e);
@@ -189,7 +193,7 @@ publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
   res.status(201).json({
     reference: created.order.reference, status: 'pending', votes: created.votes,
     subtotalXaf: created.subtotal, feeXaf: created.fee, totalXaf: created.total, currency: 'XAF', expiresAt: created.order.expires_at,
-    instructions: body.method === 'card' ? 'Redirection vers la page de paiement sécurisée' : 'Valide la demande de paiement reçue sur ton téléphone (code USSD)',
+    instructions: 'Valide la demande de paiement reçue sur ton téléphone (code USSD)',
   });
 }));
 

@@ -20,11 +20,11 @@ export default function Inscription() {
   const verify = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api('/auth/verify', { body: { ...target, code } }); router.replace('/espace'); }); };
 
   return (
-    <main className="authbox">
-      <p className="brand center">VOTALLY</p>
+    <main className="authbox auth-page auth-register">
+      <a className="auth-brand" href="/"> <span className="brand-mark">V</span> VOTALLY </a>
       {step === 'form' ? (
-        <form className="panel" onSubmit={register}>
-          <h1>Créer un compte</h1>
+        <form className="panel auth-card" onSubmit={register}>
+          <span className="auth-eyebrow">REJOIGNEZ VOTALLY</span><h1>Créez votre compte.</h1><p className="auth-intro">Lancez et gérez vos concours depuis un espace unique.</p>
           <div className="tabs"><button type="button" className={by === 'email' ? 'on' : ''} onClick={() => setBy('email')}>Email</button>
             <button type="button" className={by === 'phone' ? 'on' : ''} onClick={() => setBy('phone')}>Téléphone</button></div>
           <label className="field"><span>Nom complet</span><input className="input" required minLength={2} autoComplete="name" value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></label>
@@ -38,8 +38,8 @@ export default function Inscription() {
           <p className="center small">Déjà inscrit ? <Link href="/connexion">Se connecter</Link></p>
         </form>
       ) : (
-        <form className="panel" onSubmit={verify}>
-          <h1>Vérification</h1>
+        <form className="panel auth-card" onSubmit={verify}>
+          <span className="auth-eyebrow">SÉCURITÉ DU COMPTE</span><h1>Vérifiez votre identité.</h1><p className="auth-intro">Une dernière étape avant d’accéder à votre espace.</p>
           <p className="muted">Saisis le code à 6 chiffres envoyé à <strong>{f.contact}</strong>.</p>
           {devCode && <p className="devhint">Mode test : code {devCode}</p>}
           <input className="input code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-label="Code de vérification" />

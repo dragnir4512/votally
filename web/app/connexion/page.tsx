@@ -20,10 +20,10 @@ export default function Connexion() {
     } finally { setBusy(false); }
   };
   return (
-    <main className="authbox">
-      <p className="brand center">VOTALLY</p>
-      <form className="panel" onSubmit={submit}>
-        <h1>Connexion</h1>
+    <main className="authbox auth-page">
+      <a className="auth-brand" href="/"> <span className="brand-mark">V</span> VOTALLY </a>
+      <form className="panel auth-card" onSubmit={submit}>
+        <span className="auth-eyebrow">ESPACE PERSONNEL</span><h1>Heureux de vous revoir.</h1><p className="auth-intro">Connectez-vous pour gérer vos concours et suivre vos activités.</p>
         <label className="field"><span>Email ou téléphone</span><input className="input" required autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder="vous@exemple.com ou 690000000" /></label>
         <label className="field"><span>Mot de passe</span><input className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
         {error && <p className="error" role="alert">{error}</p>}

@@ -8,7 +8,7 @@ import type { Candidate, ContestPublic, Pack } from '../lib/types';
 const contest = (over: Partial<ContestPublic> = {}): ContestPublic => ({
   id: 'c1', name: 'Miss Test', slug: 'x', description: null, rules: null, organizerName: null, status: 'active', voteType: 'paid', votePriceXaf: 100,
   currency: 'XAF', startsAt: null, endsAt: null, maxChoicesPerVote: 2, freeVotesPerPeriod: 1, freeVotePeriodHours: 24, resultsDisplay: 'realtime',
-  defaultLocale: 'fr', theme: {}, bannerKey: null, ...over });
+  defaultLocale: 'fr', theme: {}, bannerKey: null, siteContent: {}, ...over });
 const cands: Candidate[] = [
   { id: 'a', number: 1, name: 'Alice', description: null, imageKey: null },
   { id: 'b', number: 2, name: 'Bella', description: null, imageKey: null }];
@@ -61,12 +61,20 @@ describe('VoteSheet — vote gratuit', () => {
     await screen.findByText('Patiente une minute avant de redemander un code.');
   });
 
-  it('refuse d\'envoyer le code si plus de candidats que le quota gratuit', () => {
+  it('limite les choix selon maxChoicesPerVote, indépendamment du quota gratuit par période', () => {
     routes = {};
-    sheet(contest({ voteType: 'free', freeVotesPerPeriod: 1 }), cands);
+    sheet(contest({ voteType: 'free', freeVotesPerPeriod: 5, maxChoicesPerVote: 1 }), cands);
     expect(screen.getByText(/tu peux voter pour 1 candidat\(s\) à la fois/)).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
     expect((screen.getByRole('button', { name: /Recevoir mon code/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('autorise plusieurs choix si maxChoicesPerVote le permet même avec un quota périodique de un', () => {
+    routes = {};
+    sheet(contest({ voteType: 'free', votePriceXaf: 0, freeVotesPerPeriod: 1, maxChoicesPerVote: 2 }), cands);
+    fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
+    expect(screen.queryByText(/tu peux voter pour/)).toBeNull();
+    expect((screen.getByRole('button', { name: /Recevoir mon code/ }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
 
@@ -105,9 +113,9 @@ describe('VoteSheet — vote payant', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     sheet(contest());
     fireEvent.click(screen.getByRole('button', { name: /10 votes/ }));                  // pack de 10 votes à 900 FCFA
-    fireEvent.click(screen.getByLabelText('Carte bancaire'));
+    fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-    expect(calls.filter((c) => c.url.endsWith('/quote')).at(-1)!.body).toMatchObject({ packId: 'p10', method: 'card' });
+    expect(calls.filter((c) => c.url.endsWith('/quote')).at(-1)!.body).toMatchObject({ packId: 'p10', method: 'mtn_momo' });
     const pay = await screen.findByRole('button', { name: /Payer \d.*923 FCFA|Payer .*923/ });
     fireEvent.click(pay);                                                                  // carte : aucun numéro requis
     await screen.findByText('Valide le paiement sur ton téléphone');

@@ -8,7 +8,7 @@ export interface ContestPublic {
   startsAt: string | null; endsAt: string | null;
   maxChoicesPerVote: number; freeVotesPerPeriod: number; freeVotePeriodHours: number;
   resultsDisplay: 'realtime' | 'on_close' | 'hidden';
-  defaultLocale: Lang; theme: Record<string, unknown>; bannerKey: string | null;
+  defaultLocale: Lang; theme: Record<string, unknown>; bannerKey: string | null; siteContent: Record<string, unknown>;
 }
 export interface Candidate { id: string; number: number; name: string; description: string | null; imageKey: string | null }
 export interface Pack { id: string; label: string | null; votesCount: number; priceXaf: number }
