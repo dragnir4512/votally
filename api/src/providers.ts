@@ -1,12 +1,15 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { config, isTest } from './config.js';
+import { config, isProd, isTest } from './config.js';
 
 // ============ SMS ============
 export interface SmsProvider { send(to: string, message: string): Promise<void>; }
 
 /** Développement : écrit le SMS dans la console. À remplacer par un fournisseur couvrant MTN / Orange / Camtel / Nexttel. */
 class ConsoleSms implements SmsProvider {
-  async send(to: string, message: string) { if (!isTest) console.log(`[SMS → ${to}] ${message}`); }
+  async send(to: string, message: string) {
+    if (isProd) throw new Error('Aucun fournisseur SMS réel n’est configuré : envoi désactivé en production.');
+    if (!isTest) console.log(`[SMS → ${to}] ${message}`);
+  }
 }
 export const sms: SmsProvider = new ConsoleSms();
 
