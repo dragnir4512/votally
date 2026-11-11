@@ -46,6 +46,7 @@ const contestShape = {
   freeVotePeriodHours: z.number().int().min(1).max(720),
   defaultLocale: z.enum(['fr', 'en']),
   theme: z.record(z.string(), z.any()),
+  siteContent: z.record(z.string(), z.any()).default({}),
 };
 // Création : les valeurs par défaut s'appliquent ici seulement.
 const contestFields = z.object({
@@ -59,6 +60,7 @@ const contestFields = z.object({
   freeVotePeriodHours: contestShape.freeVotePeriodHours.default(24),
   defaultLocale: contestShape.defaultLocale.default('fr'),
   theme: contestShape.theme.default({}),
+  siteContent: contestShape.siteContent.default({}),
 }).superRefine((b, ctx) => {
   // Un concours privé doit toujours être protégé : le contrôle public se base sur ce hash.
   if (b.visibility === 'private' && !b.accessPassword) {
@@ -91,7 +93,7 @@ const COLUMNS: Record<string, string> = {
   name: 'name', description: 'description', rules: 'rules', organizerName: 'organizer_name', category: 'category',
   voteType: 'vote_type', votePriceXaf: 'vote_price_xaf', startsAt: 'starts_at', endsAt: 'ends_at', visibility: 'visibility',
   resultsDisplay: 'results_display', maxChoicesPerVote: 'max_choices_per_vote', freeVotesPerPeriod: 'free_votes_per_period',
-  freeVotePeriodHours: 'free_vote_period_hours', defaultLocale: 'default_locale', theme: 'theme', slug: 'slug',
+  freeVotePeriodHours: 'free_vote_period_hours', defaultLocale: 'default_locale', theme: 'theme', siteContent: 'site_content', slug: 'slug',
 };
 
 const publicContest = (r: any) => { const { access_password_hash, ...rest } = r; return toCamel({ ...rest, has_password: !!access_password_hash }); };
@@ -108,11 +110,11 @@ contestsRouter.post('/', ah(async (req, res) => {
       const contest = await withTx(req.user!.id, async (c) => (await c.query(
         `INSERT INTO contests (owner_id, name, slug, description, rules, organizer_name, category, vote_type, vote_price_xaf,
            starts_at, ends_at, visibility, access_password_hash, results_display, max_choices_per_vote,
-           free_votes_per_period, free_vote_period_hours, default_locale, theme)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+           free_votes_per_period, free_vote_period_hours, default_locale, theme, site_content)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
         [req.user!.id, b.name, slug, b.description ?? null, b.rules ?? null, b.organizerName ?? null, b.category ?? null, b.voteType,
          b.votePriceXaf, b.startsAt ?? null, b.endsAt ?? null, b.visibility, pwHash, b.resultsDisplay, b.maxChoicesPerVote,
-         b.freeVotesPerPeriod, b.freeVotePeriodHours, b.defaultLocale, JSON.stringify(b.theme)])).rows[0]);
+         b.freeVotesPerPeriod, b.freeVotePeriodHours, b.defaultLocale, JSON.stringify(b.theme), JSON.stringify(b.siteContent)])).rows[0]);
       return res.status(201).json({ contest: publicContest(contest), url: `https://${contest.slug}.votally.com` });
     } catch (e: any) {
       const taken = e.code === '23505' && e.constraint?.includes('slug');
