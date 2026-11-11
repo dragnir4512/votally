@@ -117,7 +117,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
       <footer className="public-footer">
         <div className="public-footer-inner"><div className="public-footer-brand"><span className="public-identity-mark">V</span><span>{contest.name}</span></div>
           <span>{contest.organizerName ? `Organisé par ${contest.organizerName}` : 'Concours en ligne'}</span>
-          <a href="https://votally.com" target="_blank" rel="noopener noreferrer">Propulsé par VOTALLY</a>
+          <span>Propulsé par VOTALLY</span>
         </div>
       </footer>
 
