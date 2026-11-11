@@ -125,7 +125,7 @@ describe('Vote payant de bout en bout', () => {
     const { agent } = await signup();
     const c = await createContest(agent, { maxChoicesPerVote: 2 });
     await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
-    const tooMany = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card',
+    const tooMany = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567',
       choices: c.candidates.map((x) => ({ candidateId: x.id, quantity: 1 })) });            // 3 candidats pour un maximum de 2
     expect(tooMany.body.error.code).toBe('too_many_choices');
 
@@ -180,11 +180,11 @@ describe('Vote payant de bout en bout', () => {
     await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
     const pack = (await agent.post(`/contests/${c.id}/packs`).send({ votesCount: 10, priceXaf: 900 })).body.pack;
 
-    const foreign = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card', choices: [{ candidateId: other.candidates[0]!.id, quantity: 1 }] });
+    const foreign = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567', choices: [{ candidateId: other.candidates[0]!.id, quantity: 1 }] });
     expect(foreign.status).toBe(400);
-    const bad = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 4 }] });
+    const bad = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 4 }] });
     expect(bad.body.error.code).toBe('choices_mismatch');
-    const good = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'card', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 10 }] });
+    const good = await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', phone: '691234567', packId: pack.id, choices: [{ candidateId: c.candidates[0]!.id, quantity: 10 }] });
     expect(good.body).toMatchObject({ subtotalXaf: 900, feeXaf: 23, totalXaf: 923 });    // 2,5 % de 900 = 22,5 -> arrondi au FCFA supérieur
     expect((await request(app).post(`/public/contests/${c.slug}/orders`).send({ method: 'mtn_momo', choices: [{ candidateId: c.candidates[0]!.id, quantity: 1 }] })).body.error.code).toBe('phone_required');
   });
