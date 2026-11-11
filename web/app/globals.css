@@ -889,3 +889,55 @@ code { background: #e9edf1; padding: .1em .4em; border-radius: 6px; }
   .account-identity-mark { grid-row: span 3; }
   .account-status-panel { padding: 16px 13px; }
 }
+
+
+/* ===== Guided contest creation ===== */
+.create-flow { width: min(920px, 100%); margin: 0 auto; padding: 10px 0 54px; color: #19191e; }
+.create-flow > .small { margin: 0 0 24px; }
+.create-flow > .small a { color: #777780; text-decoration: none; }
+.create-flow > .small a:hover { color: #d71920; }
+.create-flow-heading { margin-bottom: 25px; }
+.create-flow-kicker { display: block; margin: 0 0 8px; color: #d71920; font-size: .64rem; font-weight: 900; letter-spacing: .14em; }
+.create-flow-heading h1 { margin: 0; font-size: clamp(1.9rem, 4vw, 2.55rem); font-weight: 950; letter-spacing: -.055em; }
+.create-flow-heading > p { margin: 9px 0 0; color: #777780; font-size: .86rem; }
+.create-stepper { display: grid; grid-template-columns: 1fr 70px 1fr; align-items: center; gap: 13px; margin: 0 0 20px; padding: 15px 18px; border: 1px solid #e9e9ed; border-radius: 9px; background: #fff; }
+.create-stepper > div { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.create-stepper > div > span { display: grid; flex: 0 0 31px; width: 31px; height: 31px; place-items: center; border: 1px solid #dedee3; border-radius: 50%; color: #777780; font-size: .76rem; font-weight: 900; }
+.create-stepper > div.active > span, .create-stepper > div.done > span { border-color: #d71920; background: #d71920; color: #fff; }
+.create-stepper strong, .create-stepper small { display: block; }
+.create-stepper strong { color: #29292f; font-size: .76rem; font-weight: 850; }
+.create-stepper small { margin-top: 3px; color: #888890; font-size: .65rem; }
+.create-stepper > i { height: 1px; background: #e6e6ea; }
+.create-flow-card { padding: 25px; border: 1px solid #e8e8ec; border-radius: 10px; background: #fff; box-shadow: 0 8px 28px #17171b08; }
+.create-flow-card-heading { margin-bottom: 21px; padding-bottom: 18px; border-bottom: 1px solid #eeeeF1; }
+.create-flow-card-heading h2 { margin: 0; color: #202026; font-size: 1.22rem; font-weight: 900; letter-spacing: -.025em; }
+.create-flow-card-heading p { margin: 7px 0 0; color: #777780; font-size: .78rem; line-height: 1.6; }
+.create-flow-card .form { display: grid; gap: 15px; }
+.create-flow-card .form .field { margin: 0; }
+.create-flow-card .form .input { border-color: #e3e3e8; border-radius: 7px; }
+.create-flow-card .form .group { margin: 2px 0; padding: 16px; border: 1px solid #e9e9ed; border-radius: 8px; }
+.create-flow-card .form .group legend { padding: 0 7px; color: #33333a; font-size: .78rem; font-weight: 850; }
+.create-flow-card .form .btn-primary { min-height: 45px; border-radius: 7px; background: #d71920; font-weight: 850; }
+.create-candidate-field { display: grid; gap: 8px; }
+.create-candidate-field > span { color: #35353c; font-size: .78rem; font-weight: 850; }
+.create-candidate-field textarea { width: 100%; min-height: 210px; resize: vertical; line-height: 1.65; }
+.create-candidate-field small { color: #85858d; font-size: .68rem; }
+.create-candidate-preview { display: flex; justify-content: space-between; gap: 12px; margin: 15px 0 18px; padding: 13px 14px; border: 1px solid #e9e9ed; border-radius: 7px; background: #fafafb; }
+.create-candidate-preview strong { color: #2d2d33; font-size: .75rem; }
+.create-candidate-preview span { color: #777780; font-size: .68rem; text-align: right; }
+.create-flow-actions { flex-wrap: wrap; gap: 9px; }
+.create-flow-actions .btn-primary { background: #d71920; }
+.create-flow-footnote { margin: 15px 0 0; line-height: 1.6; }
+@media (max-width: 620px) {
+  .create-flow { padding-top: 3px; }
+  .create-flow-heading { margin-bottom: 19px; }
+  .create-stepper { grid-template-columns: 1fr 22px 1fr; gap: 7px; padding: 12px 10px; }
+  .create-stepper > div { gap: 7px; }
+  .create-stepper > div > span { flex-basis: 27px; width: 27px; height: 27px; }
+  .create-stepper strong { font-size: .68rem; }
+  .create-stepper small { font-size: .58rem; }
+  .create-flow-card { padding: 17px 13px; }
+  .create-candidate-preview { flex-direction: column; }
+  .create-candidate-preview span { text-align: left; }
+  .create-flow-actions { flex-direction: column; align-items: stretch; }
+}
