@@ -501,3 +501,125 @@ code { background: #e9edf1; padding: .1em .4em; border-radius: 6px; }
   .contest-role-chip { display: none; }
   .contest-quick-stats span { font-size: .62rem; }
 }
+
+
+/* ===== Mini-site public indépendant par concours ===== */
+.public-contest { --primary: #d71920; --contest-accent: #d71920; min-height: 100vh; padding-bottom: 0; background: #fff; color: #19191e; }
+.public-contest .public-top { position: relative; z-index: 4; background: #fff; border-bottom: 1px solid #ececef; }
+.public-top-inner { width: min(1220px, calc(100% - 64px)); min-height: 76px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.public-identity { display: inline-flex; align-items: center; gap: 11px; min-width: 0; color: #1d1d23; text-decoration: none; }
+.public-identity-mark { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 10px; background: var(--contest-accent); color: #fff; font-size: 1.15rem; font-weight: 950; }
+.public-identity-name { overflow: hidden; max-width: 340px; font-size: .92rem; font-weight: 900; letter-spacing: -.02em; text-overflow: ellipsis; white-space: nowrap; }
+.public-top-actions { display: flex; align-items: center; gap: 20px; }
+.public-share-link { color: #777780; font-size: .77rem; font-weight: 750; text-decoration: none; }
+.public-share-link:hover { color: var(--contest-accent); }
+.public-cover { position: relative; min-height: 400px; display: flex; align-items: center; overflow: hidden; background: radial-gradient(circle at 82% 22%, color-mix(in srgb, var(--contest-accent) 25%, #202026), transparent 38%), linear-gradient(120deg, #18181d 0%, #292930 55%, #151519 100%); background-size: cover; background-position: center; color: #fff; }
+.public-cover:after { content: ""; position: absolute; right: 8%; top: -50%; width: 520px; height: 520px; border: 1px solid #ffffff1b; border-radius: 50%; box-shadow: 0 0 0 55px #ffffff08, 0 0 0 115px #ffffff06; pointer-events: none; }
+.public-cover-inner { position: relative; z-index: 1; width: min(1220px, calc(100% - 64px)); margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 30px; padding: 68px 0; }
+.public-cover-copy { max-width: 770px; }
+.public-overline, .public-section-kicker { display: block; margin-bottom: 13px; color: var(--contest-accent); font-size: .67rem; font-weight: 950; letter-spacing: .16em; text-transform: uppercase; }
+.public-cover .public-overline { color: #ff8589; }
+.public-cover h1 { max-width: 780px; margin: 0; color: #fff; font-size: clamp(2.4rem, 6vw, 4.8rem); font-weight: 950; line-height: .98; letter-spacing: -.07em; }
+.public-cover-copy > p { max-width: 650px; margin: 20px 0 0; color: #d0d0d5; font-size: .95rem; line-height: 1.7; white-space: pre-line; }
+.public-cover-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 23px; }
+.public-cover-meta > span { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid #ffffff28; border-radius: 6px; color: #eeeeF1; font-size: .69rem; font-weight: 700; }
+.public-cover-meta .public-status.live { border-color: #65c98b66; background: #1d7c4630; color: #a4f0bd; }
+.public-status i { width: 7px; height: 7px; border-radius: 50%; background: #b1b1b8; }
+.public-status.live i { background: #55dc88; box-shadow: 0 0 0 4px #55dc8820; }
+.public-cover-cta { display: inline-flex; align-items: center; gap: 24px; margin-top: 27px; padding: 14px 19px; border-radius: 7px; background: var(--contest-accent); color: #fff; font-size: .82rem; font-weight: 850; text-decoration: none; }
+.public-cover-cta span { font-size: 1.1rem; }
+.public-cover-side { display: flex; align-items: center; gap: 16px; color: #ffffff70; }
+.public-cover-number { font-size: 4rem; font-weight: 950; letter-spacing: -.08em; }
+.public-cover-line { width: 70px; height: 2px; background: var(--contest-accent); }
+.public-main { width: min(1220px, calc(100% - 64px)); margin: 0 auto; padding: 55px 0 120px; }
+.public-main-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-bottom: 25px; }
+.public-main-head > div:first-child { min-width: 0; }
+.public-main-head .public-section-kicker { margin-bottom: 6px; }
+.public-main-head h2 { margin: 0; color: #1d1d23; font-size: clamp(1.5rem, 3vw, 2.2rem); letter-spacing: -.055em; }
+.public-main-head p { max-width: 650px; margin: 8px 0 0; color: #777780; font-size: .82rem; line-height: 1.6; }
+.public-share-area { max-width: 100%; }
+.public-share-area .share { justify-content: flex-end; margin: 0; }
+.public-share-area .btn { min-height: 35px; padding: 0 10px; border-radius: 6px; font-size: .68rem; }
+.public-rules { margin: 20px 0 25px; padding: 15px 18px; border: 1px solid #e9e9ec; border-radius: 8px; background: #fafafb; }
+.public-rules summary { color: #35353b; font-size: .8rem; font-weight: 800; }
+.public-rules p { color: #73737c; font-size: .8rem; line-height: 1.7; }
+.public-content-bar { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 34px 0 18px; border-bottom: 1px solid #e9e9ec; }
+.public-tabs { display: flex; align-items: stretch; gap: 22px; }
+.public-tabs button { position: relative; display: inline-flex; align-items: center; gap: 9px; min-height: 54px; padding: 0 3px; border: 0; background: transparent; color: #85858d; font: inherit; font-size: .84rem; font-weight: 800; cursor: pointer; }
+.public-tabs button span { color: #b1b1b8; font-size: .62rem; font-weight: 900; }
+.public-tabs button.on { color: #1e1e24; }
+.public-tabs button.on:after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--contest-accent); }
+.public-tabs button.on span { color: var(--contest-accent); }
+.public-count { color: #8b8b92; font-size: .69rem; font-weight: 700; }
+.public-select-hint { margin: 12px 0; }
+.public-candidate-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 17px; margin-top: 18px; }
+.public-candidate-grid .card { border: 1px solid #e9e9ec; border-radius: 10px; box-shadow: 0 3px 13px #14141a08; transition: transform .18s, box-shadow .18s, border-color .18s; }
+.public-candidate-grid .card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px #14141a12; }
+.public-candidate-grid .card.is-selected { border: 2px solid var(--contest-accent); }
+.public-candidate-grid .card-media { aspect-ratio: 4 / 4.4; background: #eeeeF1; }
+.public-candidate-grid .card-body { padding: 14px; gap: 8px; }
+.public-candidate-grid .card-body h3 { color: #202026; font-size: .92rem; }
+.public-candidate-grid .card-body .btn { min-height: 38px; border-radius: 6px; font-size: .75rem; }
+.public-candidate-grid .num { top: 10px; left: 10px; min-width: 29px; height: 29px; background: var(--contest-accent); font-size: .72rem; }
+.public-candidate-grid .ph { background: linear-gradient(135deg, color-mix(in srgb, var(--contest-accent) 65%, #fff), color-mix(in srgb, var(--contest-accent) 55%, #000)); }
+.public-results-panel { padding: 25px; border: 1px solid #e9e9ec; border-radius: 10px; background: #fff; }
+.public-results-panel h3 { margin: 0 0 18px; font-size: 1.25rem; }
+.public-results-panel .results { max-width: 900px; }
+.public-results-panel .rank { background: var(--contest-accent); }
+.public-results-panel .bar span { background: var(--contest-accent); }
+.public-footer { border-top: 1px solid #ececef; background: #f8f8f9; }
+.public-footer-inner { width: min(1220px, calc(100% - 64px)); min-height: 90px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; color: #8a8a92; font-size: .68rem; }
+.public-footer-brand { display: inline-flex; align-items: center; gap: 9px; color: #292930; font-size: .76rem; font-weight: 850; }
+.public-footer-brand .public-identity-mark { flex-basis: 28px; width: 28px; height: 28px; border-radius: 7px; font-size: .8rem; }
+.public-vote-bar { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); }
+.public-vote-bar .btn { width: min(560px, 70vw); margin: 0; border-radius: 7px; background: var(--contest-accent); }
+.public-vote-summary { display: grid; gap: 1px; min-width: 130px; color: #5e5e66; font-size: .65rem; }
+.public-vote-summary strong { color: #202026; font-size: 1.2rem; }
+.public-vote-bar .btn span { margin-left: 10px; }
+@media (max-width: 1050px) {
+  .public-candidate-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+  .public-main-head { align-items: flex-start; flex-direction: column; }
+  .public-share-area .share { justify-content: flex-start; }
+}
+@media (max-width: 720px) {
+  .public-top-inner, .public-cover-inner, .public-main, .public-footer-inner { width: calc(100% - 36px); }
+  .public-top-inner { min-height: 64px; }
+  .public-identity-mark { flex-basis: 32px; width: 32px; height: 32px; }
+  .public-identity-name { max-width: 180px; font-size: .78rem; }
+  .public-top-actions { gap: 10px; }
+  .public-share-link { display: none; }
+  .public-cover { min-height: 360px; }
+  .public-cover-inner { padding: 48px 0; }
+  .public-cover h1 { font-size: clamp(2.3rem, 11vw, 3.5rem); }
+  .public-cover-copy > p { font-size: .82rem; }
+  .public-cover-side { display: none; }
+  .public-cover-meta { gap: 6px; }
+  .public-cover-meta > span { padding: 7px 9px; font-size: .61rem; }
+  .public-cover-cta { min-height: 43px; padding: 0 15px; }
+  .public-main { padding: 36px 0 110px; }
+  .public-main-head { gap: 16px; margin-bottom: 18px; }
+  .public-main-head h2 { font-size: 1.55rem; }
+  .public-share-area { width: 100%; }
+  .public-share-area .share { gap: 5px; }
+  .public-share-area .btn { min-height: 33px; padding: 0 8px; font-size: .62rem; }
+  .public-content-bar { margin-top: 26px; }
+  .public-tabs { gap: 17px; }
+  .public-tabs button { min-height: 48px; font-size: .76rem; }
+  .public-candidate-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .public-candidate-grid .card-media { aspect-ratio: 1 / 1.15; }
+  .public-candidate-grid .card-body { padding: 10px; }
+  .public-candidate-grid .card-body h3 { font-size: .8rem; }
+  .public-candidate-grid .card-body .btn { min-height: 35px; padding: 0 7px; font-size: .66rem; }
+  .public-results-panel { padding: 16px 12px; }
+  .public-footer-inner { min-height: 80px; flex-wrap: wrap; justify-content: flex-start; gap: 8px 17px; padding: 16px 0; }
+  .public-footer-inner > span { display: none; }
+  .public-vote-bar { gap: 10px; padding-left: 12px; padding-right: 12px; }
+  .public-vote-summary { min-width: 90px; font-size: .58rem; }
+  .public-vote-bar .btn { width: auto; flex: 1; min-height: 43px; font-size: .78rem; }
+}
+@media (max-width: 390px) {
+  .public-identity-name { max-width: 135px; }
+  .public-candidate-grid { gap: 7px; }
+  .public-candidate-grid .card-body { padding: 8px; }
+  .public-share-area .share { flex-wrap: wrap; }
+}
