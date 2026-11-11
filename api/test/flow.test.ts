@@ -1,4 +1,5 @@
 import request from 'supertest';
+import sharp from 'sharp';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app';
 import { mockProvider } from '../src/providers';
@@ -65,6 +66,24 @@ describe('Authentification', () => {
     const agent = request.agent(app);
     await agent.post('/auth/register').send({ email, password: PASSWORD, fullName: 'Non Vérifié', acceptTerms: true });
     expect((await agent.post('/auth/login').send({ email, password: PASSWORD })).status).toBe(403);
+  });
+});
+
+describe('Téléversements', () => {
+  it('accepte le logo de concours et le publie en WebP', async () => {
+    const { agent } = await signup();
+    const created = await agent.post('/contests').send({ name: `Logo test ${rnd()}` });
+    expect(created.status).toBe(201);
+    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 210, g: 20, b: 30 } } }).png().toBuffer();
+
+    const uploaded = await agent.post(`/contests/${created.body.contest.id}/logo`)
+      .set('Content-Type', 'image/png').send(png);
+    expect(uploaded.status, JSON.stringify(uploaded.body)).toBe(201);
+    expect(uploaded.body.logoKey).toMatch(/^[a-f0-9]{32}\.webp$/);
+
+    const metadata = await q('SELECT purpose, visibility, content_type FROM uploads WHERE key = $1', [uploaded.body.logoKey]);
+    expect(metadata.rows[0]).toMatchObject({ purpose: 'contest_logo', visibility: 'public', content_type: 'image/webp' });
+    await request(app).get(`/media/${uploaded.body.logoKey}`).expect('Content-Type', /image\/webp/).expect(200);
   });
 });
 
