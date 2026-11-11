@@ -120,7 +120,7 @@ describe('AdminPanel', () => {
     };
     renderAs('admin');
     await screen.findByText(/Grand livre équilibré/);
-    fireEvent.click(screen.getByRole('tab', { name: 'Identités' }));
+    fireEvent.click(screen.getByRole('tab', { name: /Identités/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Examiner' }));
     const approve = await screen.findByRole('button', { name: 'Valider le dossier' }) as HTMLButtonElement;
     expect(approve.disabled).toBe(true);
