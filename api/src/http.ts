@@ -27,8 +27,9 @@ export function toCamel<T = any>(row: Record<string, any> | undefined | null): T
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof HttpError) return res.status(err.status).json({ error: { code: err.code, message: err.message } });
   if (err instanceof ZodError) {
-    return res.status(400).json({ error: { code: 'validation', message: 'Données invalides',
-      details: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) } });
+    const details = err.issues.map((i) => ({ path: i.path.join('.'), message: i.message }));
+    const summary = details.slice(0, 3).map((i) => i.message).join(' · ');
+    return res.status(400).json({ error: { code: 'validation', message: summary ? `Données invalides : ${summary}` : 'Données invalides', details } });
   }
   const code: string | undefined = err?.code;
   if (code === '23505') return res.status(409).json({ error: { code: 'conflict', message: 'Cette valeur existe déjà', constraint: err.constraint } });
