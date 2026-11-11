@@ -761,3 +761,74 @@ code { background: #e9edf1; padding: .1em .4em; border-radius: 6px; }
   .payment-sheet-head h2 { font-size: 1.4rem; }
   .payment-sheet .x { top: 18px; right: 15px; }
 }
+
+
+/* ===== VOTALLY global administration workspace ===== */
+.admin-page {
+  --admin-red: #d71920;
+  --admin-ink: #17171b;
+  --admin-muted: #777780;
+  --admin-line: #e9e9ed;
+  width: min(1240px, 100%);
+  margin: 0 auto;
+  padding: 28px 0 52px;
+  color: var(--admin-ink);
+}
+.admin-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 8px 0 28px; }
+.admin-kicker { margin: 0 0 10px; color: var(--admin-red); font-size: .66rem; font-weight: 900; letter-spacing: .15em; }
+.admin-heading h1 { margin: 0; font-size: clamp(1.8rem, 4vw, 2.65rem); font-weight: 900; letter-spacing: -.055em; }
+.admin-intro { margin: 9px 0 0; color: var(--admin-muted); font-size: .9rem; }
+.admin-access { display: inline-flex; align-items: center; gap: 9px; padding: 9px 12px; border: 1px solid var(--admin-line); border-radius: 7px; background: #fff; color: #55555d; font-size: .72rem; font-weight: 750; white-space: nowrap; }
+.admin-access-dot { width: 8px; height: 8px; border-radius: 50%; background: #209b66; box-shadow: 0 0 0 4px #209b6618; }
+.admin-nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; padding: 7px; border: 1px solid var(--admin-line); border-radius: 9px; background: #f7f7f8; }
+.admin-nav button { position: relative; display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 54px; padding: 0 11px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #62626b; font: inherit; font-size: .75rem; font-weight: 750; text-align: left; cursor: pointer; }
+.admin-nav button.active { border-color: #e6e6ea; background: #fff; color: var(--admin-red); box-shadow: 0 2px 7px #17171b08; }
+.admin-nav-index { color: #a3a3aa; font-size: .6rem; font-weight: 900; letter-spacing: .04em; }
+.admin-nav button.active .admin-nav-index { color: var(--admin-red); }
+.admin-nav-arrow { margin-left: auto; font-size: .9rem; }
+.admin-module { margin-top: 19px; overflow: hidden; border: 1px solid var(--admin-line); border-radius: 10px; background: #fff; box-shadow: 0 5px 22px #17171b06; }
+.admin-module-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 22px 24px 19px; border-bottom: 1px solid var(--admin-line); }
+.admin-module-heading .admin-kicker { margin-bottom: 6px; }
+.admin-module-heading h2 { margin: 0; font-size: 1.24rem; font-weight: 900; letter-spacing: -.025em; }
+.admin-module-heading p:last-child { margin: 6px 0 0; color: var(--admin-muted); font-size: .78rem; }
+.admin-module-content { padding: 21px 24px 25px; }
+.admin-module-content > section > .tabs { margin-top: 0; border-radius: 7px; }
+.admin-module-content .stats { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; margin: 0 0 18px; }
+.admin-module-content .stat { min-height: 112px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 7px; padding: 15px 16px; border: 1px solid var(--admin-line); border-radius: 8px; text-align: left; }
+.admin-module-content .stat b { color: var(--admin-ink); font-size: 1.75rem; font-weight: 900; letter-spacing: -.05em; }
+.admin-module-content .stat span { max-width: 180px; color: var(--admin-muted); font-size: .7rem; line-height: 1.35; }
+.admin-module-content .stat.warn { border-color: #f0d9a4; background: #fffaf0; }
+.admin-module-content .stat.warn b { color: #a66a00; }
+.admin-module-content .tablewrap { border-color: var(--admin-line); border-radius: 8px; }
+.admin-module-content .table { font-size: .78rem; }
+.admin-module-content .table th { padding: 12px 13px; background: #f8f8f9; color: #777780; font-size: .65rem; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+.admin-module-content .table td { padding: 13px; }
+.admin-module-content .btn { border-radius: 6px; font-size: .72rem; }
+.admin-module-content .btn-primary { background: var(--admin-red); }
+.admin-module-content .btn-outline { border-color: #e7b7b9; color: var(--admin-red); }
+.admin-module-content .btn-outline:hover { background: #fff5f5; }
+.admin-module-content .input { max-width: 440px; margin-bottom: 13px; border-color: #e4e4e8; border-radius: 7px; font-size: .82rem; }
+.admin-module-content .panel { border-color: var(--admin-line); border-radius: 8px; box-shadow: none; }
+.admin-module-content .notice { border-color: #f0dfb2; border-radius: 7px; font-size: .76rem; }
+.admin-foot { display: flex; justify-content: space-between; gap: 14px; padding: 18px 2px 0; color: #9999a1; font-size: .65rem; }
+.admin-foot span:first-child { color: #55555d; font-weight: 900; letter-spacing: .12em; }
+.admin-denied { max-width: 520px; margin: 70px auto; padding: 38px 28px; border: 1px solid var(--admin-line, #e9e9ed); border-radius: 10px; background: #fff; text-align: center; }
+.admin-denied-mark { display: grid; width: 46px; height: 46px; place-items: center; margin: 0 auto 16px; border-radius: 50%; background: #fff0f0; color: #d71920; font-size: 1.3rem; font-weight: 900; }
+.admin-denied h2 { margin: 0; font-size: 1.4rem; }
+.admin-denied p:last-child { color: #777780; font-size: .85rem; }
+@media (max-width: 900px) {
+  .admin-page { padding-top: 18px; }
+  .admin-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .admin-heading { align-items: flex-start; flex-direction: column; gap: 15px; padding-bottom: 20px; }
+  .admin-nav { display: flex; overflow-x: auto; gap: 5px; padding: 5px; }
+  .admin-nav button { flex: 0 0 auto; min-height: 46px; padding: 0 10px; }
+  .admin-nav-index { display: none; }
+  .admin-module-heading { padding: 18px 16px 15px; }
+  .admin-module-content { padding: 15px 12px 18px; }
+  .admin-module-content .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-module-content .stat { min-height: 100px; padding: 12px; }
+  .admin-module-content .stat b { font-size: 1.45rem; }
+  .admin-foot { flex-direction: column; }
+}
