@@ -1033,3 +1033,19 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .admin-module-heading { padding: 18px 16px; }
   .admin-module-content { padding: 16px 12px 20px; }
 }
+
+
+/* Public mini-site editorial modules */
+.public-tagline { margin: 12px 0 0; max-width: 720px; color: rgba(255,255,255,.88); font-size: clamp(1.05rem, 2vw, 1.35rem); font-weight: 650; line-height: 1.5; }
+.public-editorial { padding: 54px 22px 12px; background: #fff; }
+.public-editorial-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; width: min(1180px,100%); margin: 0 auto; }
+.public-editorial-card { padding: 25px; border: 1px solid var(--line, #e8e8ec); border-radius: 16px; background: #fff; box-shadow: 0 8px 26px rgba(20,20,25,.035); }
+.public-editorial-card h2 { margin: 8px 0 12px; color: #18181d; font-size: 1.25rem; font-weight: 900; letter-spacing: -.025em; }
+.public-editorial-card p { margin: 8px 0 0; color: #686871; font-size: .9rem; line-height: 1.75; white-space: pre-line; overflow-wrap: anywhere; }
+.public-editorial-card a { color: var(--primary, #D71920); font-weight: 750; text-decoration: none; }
+.public-editorial-card a:hover { text-decoration: underline; }
+@media (max-width: 700px) {
+  .public-editorial { padding: 28px 14px 4px; }
+  .public-editorial-grid { grid-template-columns: 1fr; gap: 11px; }
+  .public-editorial-card { padding: 19px 17px; }
+}
