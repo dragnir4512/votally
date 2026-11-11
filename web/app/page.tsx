@@ -6,7 +6,7 @@ const features = [
   { number: '03', title: 'Suivez les résultats', text: 'Consultez les votes et les performances avec un suivi conçu pour rester lisible.' },
 ];
 
-const methods = ['MTN Mobile Money', 'Orange Money', 'Carte bancaire'];
+const methods = ['MTN Mobile Money', 'Orange Money', 'Mastercard · activation requise'];
 
 export default function Home() {
   return (
@@ -69,7 +69,7 @@ export default function Home() {
       </section>
 
       <section className="landing-strip" id="paiements">
-        <div><span className="strip-label">UNE EXPÉRIENCE DE VOTE ACCESSIBLE</span><strong>Des moyens de paiement adaptés à votre public</strong></div>
+        <div><span className="strip-label">UNE EXPÉRIENCE DE VOTE ACCESSIBLE</span><strong>Mobile Money et carte bancaire selon activation du prestataire</strong></div>
         <div className="payment-list">{methods.map((method) => <span key={method} className="payment-pill"><i />{method}</span>)}</div>
       </section>
 
