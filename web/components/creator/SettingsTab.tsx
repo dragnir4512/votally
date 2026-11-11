@@ -43,7 +43,7 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
         {error && <p className="error" role="alert">{error}</p>}
       </div>
       <div className="panel">
-        <ContestForm initial={formFromContest(contest)} locked={contest.status !== 'draft'} existingTheme={contest.theme} submitLabel="Enregistrer"
+        <ContestForm initial={formFromContest(contest)} locked={contest.status !== 'draft'} existingTheme={contest.theme} hasExistingPassword={contest.hasPassword} submitLabel="Enregistrer"
           onSubmit={async (body) => { await api(`/contests/${contest.id}`, { method: 'PATCH', body }); await reload(); }} />
       </div>
 
