@@ -7,8 +7,8 @@ function L({ label, children, hint }: { label: string; children: React.ReactNode
   return <label className="field"><span>{label}</span>{children}{hint && <small className="muted">{hint}</small>}</label>;
 }
 
-export default function ContestForm({ initial = emptyForm, locked, submitLabel, existingTheme, onSubmit }:
-  { initial?: FormValues; locked: boolean; submitLabel: string; existingTheme?: Record<string, unknown>; onSubmit: (body: Record<string, unknown>) => Promise<void> }) {
+export default function ContestForm({ initial = emptyForm, locked, submitLabel, existingTheme, hasExistingPassword = false, onSubmit }:
+  { initial?: FormValues; locked: boolean; submitLabel: string; existingTheme?: Record<string, unknown>; hasExistingPassword?: boolean; onSubmit: (body: Record<string, unknown>) => Promise<void> }) {
   const [v, setV] = useState<FormValues>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
       <div className="two">
         <L label="Accès"><select className="input" value={v.visibility} onChange={(e) => set('visibility', e.target.value as 'public' | 'private')}>
           <option value="public">Public</option><option value="private">Privé (mot de passe)</option></select></L>
-        {v.visibility === 'private' && <L label="Mot de passe" hint="Laisser vide pour conserver l'actuel."><input className="input" type="text" minLength={4} value={v.accessPassword} onChange={(e) => set('accessPassword', e.target.value)} /></L>}
+        {v.visibility === 'private' && <L label="Mot de passe" hint={hasExistingPassword ? 'Laisser vide pour conserver le mot de passe actuel.' : 'Obligatoire pour protéger un concours privé.'}><input className="input" type="password" autoComplete="new-password" minLength={4} maxLength={100} required={!hasExistingPassword} value={v.accessPassword} onChange={(e) => set('accessPassword', e.target.value)} /></L>}
       </div>
       <L label="Couleur principale"><input className="color" type="color" value={v.primaryColor} onChange={(e) => set('primaryColor', e.target.value)} /></L>
 
