@@ -166,7 +166,7 @@ describe('Concours : règles métier', () => {
     await agent.post(`/contests/${id}/candidates`).send([{ name: 'A' }, { name: 'B' }]);
     await agent.patch(`/contests/${id}`).send({ rules: 'Règlement' });
     expect((await agent.post(`/contests/${id}/actions/activate`)).status).toBe(200);
-    const locked = await agent.patch(`/contests/${id}`).send({ votePriceXaf: 1, voteType: 'paid' });
+    const locked = await agent.patch(`/contests/${id}`).send({ votePriceXaf: 150, voteType: 'paid' });
     expect(locked.status).toBe(422);
     expect(locked.body.error.message).toMatch(/verrouillés/);
     expect((await agent.patch(`/contests/${id}`).send({ maxChoicesPerVote: 5 })).status).toBe(422);   // migration 008
