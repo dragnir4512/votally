@@ -131,14 +131,40 @@ function Payouts() {
   );
 }
 
+const TAB_DESCRIPTIONS: Record<Tab, string> = {
+  overview: 'Surveille les opérations sensibles et les indicateurs de contrôle de la plateforme.',
+  kyc: 'Examine les justificatifs et vérifie la concordance des informations avant validation.',
+  refunds: 'Contrôle les paiements qui nécessitent une régularisation après remboursement chez l’agrégateur.',
+  contests: 'Consulte les concours et contrôle le gel ou le dégel des fonds associés.',
+  fraud: 'Analyse les alertes générées par les mécanismes de détection disponibles.',
+  payouts: 'Suit les demandes de retrait et leurs statuts de traitement.',
+};
+
 export default function AdminPanel() {
   const me = useMe(); const [tab, setTab] = useState<Tab>('overview');
-  if (me.role !== 'admin') return <div className="panel center"><h2>Accès réservé</h2><p className="muted">Cette page est réservée aux administrateurs de VOTALLY.</p></div>;
+  if (me.role !== 'admin') return <div className="admin-denied"><div className="admin-denied-mark">!</div><p className="admin-kicker">ESPACE SÉCURISÉ</p><h2>Accès réservé</h2><p>Cette page est réservée aux administrateurs de VOTALLY.</p></div>;
   return (
-    <>
-      <h1>Administration</h1>
-      <div className="tabs scroll" role="tablist">{TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} type="button" onClick={() => setTab(k)}>{l}</button>)}</div>
-      {tab === 'overview' && <Overview />}{tab === 'kyc' && <Kyc />}{tab === 'refunds' && <Refunds />}{tab === 'contests' && <Contests />}{tab === 'fraud' && <Fraud />}{tab === 'payouts' && <Payouts />}
-    </>
+    <div className="admin-page">
+      <header className="admin-heading">
+        <div>
+          <p className="admin-kicker">VOTALLY / CONTRÔLE DE LA PLATEFORME</p>
+          <h1>Centre d’administration</h1>
+          <p className="admin-intro">Supervision des opérations, conformité et sécurité.</p>
+        </div>
+        <div className="admin-access"><span className="admin-access-dot" /> Session administrateur</div>
+      </header>
+      <nav className="admin-nav" aria-label="Modules d’administration" role="tablist">
+        {TABS.map(([k, l], index) => <button key={k} id={`admin-tab-${k}`} role="tab" aria-selected={tab === k} aria-controls="admin-module" tabIndex={tab === k ? 0 : -1} className={tab === k ? 'active' : ''} type="button" onClick={() => setTab(k)}>
+          <span className="admin-nav-index">0{index + 1}</span><span>{l}</span>{tab === k && <span className="admin-nav-arrow" aria-hidden="true">↗</span>}
+        </button>)}
+      </nav>
+      <section className="admin-module" id="admin-module" role="tabpanel" aria-labelledby={`admin-tab-${tab}`}>
+        <div className="admin-module-heading"><div><p className="admin-kicker">MODULE  /  {TABS.find(([key]) => key === tab)?.[1].toUpperCase()}</p><h2>{TABS.find(([key]) => key === tab)?.[1]}</h2><p>{TAB_DESCRIPTIONS[tab]}</p></div></div>
+        <div className="admin-module-content">
+          {tab === 'overview' && <Overview />}{tab === 'kyc' && <Kyc />}{tab === 'refunds' && <Refunds />}{tab === 'contests' && <Contests />}{tab === 'fraud' && <Fraud />}{tab === 'payouts' && <Payouts />}
+        </div>
+      </section>
+      <footer className="admin-foot"><span>VOTALLY ADMIN</span><span>Accès réservé · Les actions sensibles sont journalisées par le serveur.</span></footer>
+    </div>
   );
 }
