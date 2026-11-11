@@ -113,9 +113,9 @@ describe('VoteSheet — vote payant', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     sheet(contest());
     fireEvent.click(screen.getByRole('button', { name: /10 votes/ }));                  // pack de 10 votes à 900 FCFA
-    fireEvent.click(screen.getByLabelText('Carte bancaire'));
+    fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
-    expect(calls.filter((c) => c.url.endsWith('/quote')).at(-1)!.body).toMatchObject({ packId: 'p10', method: 'card' });
+    expect(calls.filter((c) => c.url.endsWith('/quote')).at(-1)!.body).toMatchObject({ packId: 'p10', method: 'mtn_momo' });
     const pay = await screen.findByRole('button', { name: /Payer \d.*923 FCFA|Payer .*923/ });
     fireEvent.click(pay);                                                                  // carte : aucun numéro requis
     await screen.findByText('Valide le paiement sur ton téléphone');
