@@ -68,6 +68,53 @@ describe('Authentification', () => {
   });
 });
 
+describe('Contenu des mini-sites publics', () => {
+  it('enregistre, modifie et expose le contenu éditorial du concours sans exposer les brouillons', async () => {
+    const { agent } = await signup();
+    const siteContent = {
+      tagline: 'Le talent mérite sa scène',
+      concept: 'Une compétition nationale ouverte aux jeunes talents.',
+      objectives: 'Promouvoir la créativité et la culture.',
+      location: 'Yaoundé, Cameroun',
+      eligibility: '18 ans minimum',
+      contactEmail: 'contact@example.cm',
+      contactPhone: '+237 690000000',
+      websiteUrl: 'https://example.cm',
+      instagramUrl: 'https://instagram.com/example',
+      facebookUrl: null,
+    };
+    const created = await agent.post('/contests').send({
+      name: 'Mini-site éditorial',
+      rules: 'Règlement officiel',
+      siteContent,
+    });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const id = created.body.contest.id as string;
+    await agent.post(`/contests/${id}/candidates`).send([{ name: 'Alice' }, { name: 'Bella' }]).expect(201);
+    await agent.post(`/contests/${id}/actions/activate`).expect(200);
+
+    const publicPage = await request(app).get(`/public/contests/${created.body.contest.slug}`);
+    expect(publicPage.status).toBe(200);
+    expect(publicPage.body.contest.siteContent).toMatchObject({
+      tagline: siteContent.tagline,
+      concept: siteContent.concept,
+      location: siteContent.location,
+      websiteUrl: siteContent.websiteUrl,
+    });
+
+    const patched = await agent.patch(`/contests/${id}`).send({
+      siteContent: { ...siteContent, tagline: 'Une nouvelle saison commence' },
+    });
+    expect(patched.status).toBe(200);
+    expect(patched.body.contest.siteContent.tagline).toBe('Une nouvelle saison commence');
+
+    const unsafe = await agent.patch(`/contests/${id}`).send({
+      siteContent: { ...siteContent, websiteUrl: 'javascript:alert(1)' },
+    });
+    expect(unsafe.status).toBe(400);
+  });
+});
+
 describe('Concours : règles métier', () => {
   it('impose un mot de passe à tout concours privé, à la création comme à la modification', async () => {
     const { agent } = await signup();
