@@ -221,12 +221,14 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
             )}
 
             {mode === 'paid' && (
-              <div className="payment-section-heading"><span className="payment-step">03</span><div><h3>{t('orderSummary')}</h3><p>{lang === 'fr' ? 'Vérifie le montant avant de payer' : 'Review the amount before paying'}</p></div></div>
-              <dl className="totals payment-totals">
-                <div><dt>{t('subtotal')} ({totalVotes})</dt><dd>{quote ? formatXaf(quote.subtotalXaf, lang) : '…'}</dd></div>
-                <div><dt>{t('fees')}</dt><dd>{quote ? formatXaf(quote.feeXaf, lang) : '…'}</dd></div>
-                <div className="grand"><dt>{t('total')}</dt><dd>{quote ? formatXaf(quote.totalXaf, lang) : t('computing')}</dd></div>
-              </dl>
+              <>
+                <div className="payment-section-heading"><span className="payment-step">03</span><div><h3>{t('orderSummary')}</h3><p>{lang === 'fr' ? 'Vérifie le montant avant de payer' : 'Review the amount before paying'}</p></div></div>
+                <dl className="totals payment-totals">
+                  <div><dt>{t('subtotal')} ({totalVotes})</dt><dd>{quote ? formatXaf(quote.subtotalXaf, lang) : '…'}</dd></div>
+                  <div><dt>{t('fees')}</dt><dd>{quote ? formatXaf(quote.feeXaf, lang) : '…'}</dd></div>
+                  <div className="grand"><dt>{t('total')}</dt><dd>{quote ? formatXaf(quote.totalXaf, lang) : t('computing')}</dd></div>
+                </dl>
+              </>
             )}
 
             {error && <p className="error" role="alert">{error}</p>}
