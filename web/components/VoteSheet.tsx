@@ -100,7 +100,12 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
 
   return (
     <div className="overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={t('vote')}>
+      <div className="sheet payment-sheet" role="dialog" aria-modal="true" aria-label={t('vote')}>
+        <div className="payment-sheet-head">
+          <span className="payment-kicker">VOTALLY · {lang === 'fr' ? 'VOTE SÉCURISÉ' : 'SECURE VOTING'}</span>
+          <h2>{t('vote')}</h2>
+          <p>{lang === 'fr' ? 'Finalise ton vote en quelques étapes.' : 'Complete your vote in a few steps.'}</p>
+        </div>
         <button className="x" type="button" onClick={onClose} aria-label={t('close')}>×</button>
 
         {step === 'done' && (
@@ -151,11 +156,11 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
 
         {step === 'form' && (
           <div>
-            <h2>{t('voteFor', { n: selected.length })}</h2>
+            <div className="payment-section-heading"><span className="payment-step">01</span><div><h3>{t('voteFor', { n: selected.length })}</h3><p>{lang === 'fr' ? 'Ta sélection' : 'Your selection'}</p></div></div>
             <p className="chips">{selected.map((c) => <span key={c.id} className="chip">#{c.number} {c.name}</span>)}</p>
 
             {canFree && canPaid && (
-              <div className="tabs" role="tablist">
+              <div className="tabs payment-tabs" role="tablist">
                 <button role="tab" aria-selected={mode === 'free'} className={mode === 'free' ? 'on' : ''} onClick={() => { setMode('free'); setError(null); }} type="button">{t('free')}</button>
                 <button role="tab" aria-selected={mode === 'paid'} className={mode === 'paid' ? 'on' : ''} onClick={() => { setMode('paid'); setError(null); }} type="button">{t('paid')}</button>
               </div>
@@ -166,7 +171,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
 
             {mode === 'paid' && (
               <>
-                <p className="muted small">{t('pricePerVote', { price: formatXaf(contest.votePriceXaf, lang) })}</p>
+                <div className="payment-price-note"><span>{lang === 'fr' ? 'Tarif du concours' : 'Contest price'}</span><strong>{t('pricePerVote', { price: formatXaf(contest.votePriceXaf, lang) })}</strong></div>
                 {packs.length > 0 && (
                   <div className="packs" aria-label={t('packs')}>
                     {packs.map((p) => (
@@ -187,13 +192,21 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
                     </div>
                   </div>
                 ))}
-                <fieldset className="methods"><legend>{t('payWith')}</legend>
-                  {(['mtn_momo', 'orange_money', 'card'] as PayMethod[]).map((m) => (
+                <div className="payment-section-heading"><span className="payment-step">02</span><div><h3>{t('payWith')}</h3><p>{lang === 'fr' ? 'Choisis ton moyen de paiement' : 'Choose your payment method'}</p></div></div>
+                <fieldset className="methods"><legend className="sr-only">{t('payWith')}</legend>
+                  {(['mtn_momo', 'orange_money'] as PayMethod[]).map((m) => (
                     <label key={m} className={method === m ? 'on' : ''}>
                       <input type="radio" name="method" checked={method === m} onChange={() => setMethod(m)} />
-                      {m === 'mtn_momo' ? t('momo') : m === 'orange_money' ? t('orange') : t('card')}
+                      <span className={m === 'mtn_momo' ? 'payment-provider-mark mtn' : 'payment-provider-mark orange'}>{m === 'mtn_momo' ? 'MTN' : 'OM'}</span>
+                      <span className="payment-method-copy"><strong>{m === 'mtn_momo' ? t('momo') : t('orange')}</strong><small>{lang === 'fr' ? 'Paiement mobile' : 'Mobile payment'}</small></span>
+                      <span className="payment-radio-indicator" />
                     </label>
                   ))}
+                  <div className="payment-card-disabled" aria-disabled="true">
+                    <span className="payment-provider-mark card-mark">MC</span>
+                    <span className="payment-method-copy"><strong>{t('card')}</strong><small>{t('cardUnavailable')}</small></span>
+                    <span className="payment-coming-soon">{lang === 'fr' ? 'Bientôt' : 'Coming soon'}</span>
+                  </div>
                 </fieldset>
               </>
             )}
@@ -208,7 +221,8 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
             )}
 
             {mode === 'paid' && (
-              <dl className="totals">
+              <div className="payment-section-heading"><span className="payment-step">03</span><div><h3>{t('orderSummary')}</h3><p>{lang === 'fr' ? 'Vérifie le montant avant de payer' : 'Review the amount before paying'}</p></div></div>
+              <dl className="totals payment-totals">
                 <div><dt>{t('subtotal')} ({totalVotes})</dt><dd>{quote ? formatXaf(quote.subtotalXaf, lang) : '…'}</dd></div>
                 <div><dt>{t('fees')}</dt><dd>{quote ? formatXaf(quote.feeXaf, lang) : '…'}</dd></div>
                 <div className="grand"><dt>{t('total')}</dt><dd>{quote ? formatXaf(quote.totalXaf, lang) : t('computing')}</dd></div>
