@@ -88,7 +88,7 @@ describe('ContestAdmin', () => {
     expect(await screen.findByText(/920\s?FCFA/)).toBeTruthy();                           // solde du concours
     cleanup();
     setup('viewer', contest({ status: 'active' }), [cand(1), cand(2)]);
-    await screen.findByText('votes valides');
+    await screen.findByText(/votes valides/i);
     expect(screen.queryByText('Finances du concours')).toBeNull();
     expect(screen.queryByText('Gérer le concours')).toBeNull();
   });
