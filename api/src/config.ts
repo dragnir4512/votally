@@ -2,7 +2,11 @@ import { z } from 'zod';
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().default(3000),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
+  DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(5000),
+  DB_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300000).default(30000),
+  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET : 16 caractères minimum'),
   // Poivre des numéros de téléphone : NE JAMAIS le perdre ni le changer (voir HANDOFF.md)
