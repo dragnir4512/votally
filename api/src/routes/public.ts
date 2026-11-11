@@ -33,7 +33,7 @@ publicRouter.get('/contests/:slug', ah(async (req, res) => {
     contest: toCamel({ id: c.id, name: c.name, slug: c.slug, description: c.description, rules: c.rules, organizer_name: c.organizer_name,
       status: c.status, vote_type: c.vote_type, vote_price_xaf: c.vote_price_xaf, currency: c.currency, starts_at: c.starts_at, ends_at: c.ends_at,
       max_choices_per_vote: c.max_choices_per_vote, free_votes_per_period: c.free_votes_per_period, free_vote_period_hours: c.free_vote_period_hours,
-      results_display: c.results_display, default_locale: c.default_locale, theme: c.theme, banner_key: c.banner_key }),
+      results_display: c.results_display, default_locale: c.default_locale, theme: c.theme, banner_key: c.banner_key, site_content: c.site_content }),
     candidates: cands.rows.map((x) => toCamel(x)),
     packs: packs.rows.map((x) => toCamel(x)),
   });
