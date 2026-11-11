@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/client';
-import { STATUS_LABEL, VOTE_TYPE_LABEL, ROLE_LABEL, xaf, type MyContest } from '../../lib/creator';
+import { STATUS_LABEL, VOTE_TYPE_LABEL, ROLE_LABEL, type MyContest } from '../../lib/creator';
 
 export default function MesConcours() {
   const [items, setItems] = useState<MyContest[] | null>(null);
