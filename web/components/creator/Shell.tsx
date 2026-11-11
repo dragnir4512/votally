@@ -1,22 +1,39 @@
 'use client';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { api } from '../../lib/client';
 import { RequireAuth, useMe } from '../../lib/session';
 
 function Header() {
-  const me = useMe(); const router = useRouter();
-  const logout = async () => { await api('/auth/logout', { method: 'POST', body: {} }).catch(() => undefined); router.push('/connexion'); };
+  const me = useMe();
+  const router = useRouter();
+  const pathname = usePathname();
+  const logout = async () => {
+    await api('/auth/logout', { method: 'POST', body: {} }).catch(() => undefined);
+    router.push('/connexion');
+  };
+  const links = [
+    { href: '/espace', label: 'Tableau de bord', short: 'Accueil' },
+    { href: '/espace/compte', label: 'Mon compte', short: 'Compte' },
+  ];
   return (
-    <header className="top"><div className="top-in">
-      <Link href="/espace" className="brand">VOTALLY</Link>
-      <nav className="who"><Link href="/espace" className="small">Mes concours</Link><Link href="/espace/compte" className="small">Mon compte</Link>{me.role === 'admin' && <Link href="/admin" className="small">Administration</Link>}
-        <button type="button" className="btn btn-ghost" onClick={logout}>Déconnexion</button></nav>
-    </div></header>
+    <header className="creator-top">
+      <div className="creator-top-inner">
+        <Link href="/espace" className="creator-brand"><span className="creator-brand-mark">V</span><span>VOTALLY</span></Link>
+        <nav className="creator-nav" aria-label="Navigation organisateur">
+          {links.map((link) => <Link key={link.href} href={link.href} className={pathname === link.href ? 'active' : ''}>{link.label}</Link>)}
+          {me.role === 'admin' && <Link href="/admin" className={pathname.startsWith('/admin') ? 'active' : ''}>Administration</Link>}
+        </nav>
+        <div className="creator-user">
+          <span className="creator-user-name">{me.fullName || me.email || me.phone || 'Mon compte'}</span>
+          <button type="button" className="creator-logout" onClick={logout}>Déconnexion</button>
+        </div>
+      </div>
+    </header>
   );
 }
 
 export default function Shell({ children }: { children: ReactNode }) {
-  return <RequireAuth><Header /><main className="shell">{children}</main></RequireAuth>;
+  return <RequireAuth><div className="creator-app"><Header /><main className="creator-shell">{children}</main><footer className="creator-footer">© {new Date().getFullYear()} VOTALLY <span>Votre espace organisateur</span></footer></div></RequireAuth>;
 }
