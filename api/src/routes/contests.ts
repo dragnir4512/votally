@@ -145,8 +145,22 @@ contestsRouter.patch('/:id', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
   await needRole(req, id, ['owner', 'manager']);
   const b = contestPatch.parse(req.body) as Record<string, any>;
-  const current = (await q('SELECT visibility, access_password_hash FROM contests WHERE id = $1', [id])).rows[0];
+  const current = (await q('SELECT visibility, access_password_hash, starts_at, ends_at, vote_type, vote_price_xaf FROM contests WHERE id = $1', [id])).rows[0];
   if (!current) throw new HttpError(404, 'Concours introuvable', 'not_found');
+  // Valide l'état final, pas seulement les champs présents dans le PATCH.
+  const nextStartsAt = b.startsAt === undefined ? current.starts_at : b.startsAt;
+  const nextEndsAt = b.endsAt === undefined ? current.ends_at : b.endsAt;
+  if (nextStartsAt && nextEndsAt && new Date(nextEndsAt).getTime() <= new Date(nextStartsAt).getTime()) {
+    throw new HttpError(422, 'La date de fin doit être postérieure à la date de début.', 'invalid_contest_dates');
+  }
+  const nextVoteType = b.voteType ?? current.vote_type;
+  const nextVotePrice = b.votePriceXaf ?? Number(current.vote_price_xaf);
+  if (nextVoteType === 'free' && nextVotePrice !== 0) {
+    throw new HttpError(422, 'Un concours gratuit ne peut pas avoir de prix de vote.', 'invalid_vote_price');
+  }
+  if (nextVoteType !== 'free' && nextVotePrice < 100) {
+    throw new HttpError(422, 'Le prix d’un vote payant doit être d’au moins 100 FCFA.', 'invalid_vote_price');
+  }
   const nextVisibility = b.visibility ?? current.visibility;
   const hasNextPassword = b.accessPassword === undefined ? Boolean(current.access_password_hash) : Boolean(b.accessPassword);
   if (nextVisibility === 'private' && !hasNextPassword) {
