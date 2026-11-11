@@ -35,7 +35,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
   const choices = useMemo(() => selected.map((c) => ({ candidateId: c.id, quantity: qty[c.id] ?? 1 })), [selected, qty]);
   const needsPhone = mode === 'free' || method !== 'card';
   const phoneOk = !needsPhone || validPhone(phone);
-  const freeTooMany = mode === 'free' && selected.length > contest.freeVotesPerPeriod;
+  const freeTooMany = mode === 'free' && selected.length > contest.maxChoicesPerVote;
   const fail = (e: unknown) => setError(e instanceof ApiError ? err(e.code, e.message) : t('genericError'));
 
   // Fermeture au clavier + blocage du défilement derrière la feuille
