@@ -1057,3 +1057,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .form-section-heading h2 { margin: 0; color: #1c1c21; font-size: 1.05rem; font-weight: 900; letter-spacing: -.02em; }
 .form-section-heading p { margin: 6px 0 0; color: #777780; font-size: .78rem; line-height: 1.55; }
 @media (max-width: 620px) { .form-section { padding: 16px 12px; } }
+
+.contest-logo-preview { display: block; width: 112px; height: 112px; margin: 10px 0 14px; border: 1px solid var(--line); border-radius: 16px; object-fit: contain; background: #fff; }
+.public-identity-logo { width: 42px; height: 42px; border-radius: 10px; object-fit: contain; background: #fff; border: 1px solid rgba(0,0,0,.06); }
