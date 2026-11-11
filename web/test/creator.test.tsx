@@ -84,12 +84,12 @@ describe('ContestAdmin', () => {
 
   it('le propriétaire voit les finances d\'un concours payant, pas l\'observateur', async () => {
     setup('owner', contest({ status: 'active' }), [cand(1), cand(2)]);
-    await screen.findByText('Finances');
+    await screen.findByText('Finances du concours');
     expect(await screen.findByText(/920\s?FCFA/)).toBeTruthy();                           // solde du concours
     cleanup();
     setup('viewer', contest({ status: 'active' }), [cand(1), cand(2)]);
     await screen.findByText('votes valides');
-    expect(screen.queryByText('Finances')).toBeNull();
+    expect(screen.queryByText('Finances du concours')).toBeNull();
     expect(screen.queryByText('Gérer le concours')).toBeNull();
   });
 
