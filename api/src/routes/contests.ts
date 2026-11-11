@@ -29,7 +29,7 @@ export function slugify(s: string): string {
 // Forme des champs SANS valeur par défaut : sert au PATCH (seuls les champs envoyés changent).
 const contestShape = {
   name: z.string().trim().min(3).max(120),
-  slug: z.string().optional(),
+  slug: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$/, 'Le slug doit contenir 3 à 32 caractères minuscules, chiffres ou tirets.').optional(),
   description: z.string().max(5000).nullish(),
   rules: z.string().max(20000).nullish(),
   organizerName: z.string().max(120).nullish(),
@@ -64,8 +64,27 @@ const contestFields = z.object({
   if (b.visibility === 'private' && !b.accessPassword) {
     ctx.addIssue({ code: 'custom', path: ['accessPassword'], message: 'Un mot de passe est obligatoire pour un concours privé.' });
   }
+  if (b.startsAt && b.endsAt && b.endsAt <= b.startsAt) {
+    ctx.addIssue({ code: 'custom', path: ['endsAt'], message: 'La date de fin doit être postérieure à la date de début.' });
+  }
+  if (b.voteType !== 'free' && b.votePriceXaf < 100) {
+    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Le prix d’un vote payant doit être d’au moins 100 FCFA.' });
+  }
+  if (b.voteType === 'free' && b.votePriceXaf !== 0) {
+    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Un concours gratuit ne peut pas avoir de prix de vote.' });
+  }
 });
-const contestPatch = z.object(contestShape).partial();
+const contestPatch = z.object(contestShape).partial().superRefine((b, ctx) => {
+  if (b.startsAt && b.endsAt && b.endsAt <= b.startsAt) {
+    ctx.addIssue({ code: 'custom', path: ['endsAt'], message: 'La date de fin doit être postérieure à la date de début.' });
+  }
+  if (b.voteType !== undefined && b.voteType !== 'free' && b.votePriceXaf !== undefined && b.votePriceXaf < 100) {
+    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Le prix d’un vote payant doit être d’au moins 100 FCFA.' });
+  }
+  if (b.voteType === 'free' && b.votePriceXaf !== undefined && b.votePriceXaf !== 0) {
+    ctx.addIssue({ code: 'custom', path: ['votePriceXaf'], message: 'Un concours gratuit ne peut pas avoir de prix de vote.' });
+  }
+});
 
 
 const COLUMNS: Record<string, string> = {
