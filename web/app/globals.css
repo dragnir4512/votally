@@ -1,4 +1,4 @@
-:root { --primary: #0E7C66; --bg: #f5f6f8; --card: #fff; --text: #17202a; --muted: #5d6b7a; --line: #e3e7ec; --err: #c0392b; --r: 14px; }
+:root { --primary: #D71920; --primary-hover: #B9151B; --primary-soft: #FFF0F0; --bg: #F7F7F5; --card: #fff; --text: #17171B; --muted: #777780; --line: #E8E8EC; --err: #C0392B; --r: 16px; --surface: #FAFAF9; --shadow-card: 0 12px 34px rgba(23,23,27,.055); }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
@@ -940,4 +940,96 @@ code { background: #e9edf1; padding: .1em .4em; border-radius: 6px; }
   .create-candidate-preview { flex-direction: column; }
   .create-candidate-preview span { text-align: left; }
   .create-flow-actions { flex-direction: column; align-items: stretch; }
+}
+
+
+/* ===== VOTALLY unified design system — Figma-aligned pass ===== */
+:root {
+  color-scheme: light;
+  --primary: #D71920;
+  --primary-hover: #B9151B;
+  --primary-soft: #FFF0F0;
+  --bg: #F7F7F5;
+  --card: #FFFFFF;
+  --text: #17171B;
+  --muted: #777780;
+  --line: #E8E8EC;
+  --r: 16px;
+  --surface: #FAFAF9;
+  --shadow-card: 0 12px 34px rgba(23,23,27,.055);
+}
+html { background: var(--bg); scroll-behavior: smooth; }
+body { color: var(--text); background: #fff; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, textarea, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid rgba(215,25,32,.25); outline-offset: 3px; }
+.btn, .btn-primary, .btn-outline, .organizer-primary, .landing-cta, .public-cover-cta {
+  min-height: 44px; border-radius: 11px; font-weight: 800; transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.btn-primary, .organizer-primary, .landing-cta, .public-cover-cta { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-primary:hover, .organizer-primary:hover, .landing-cta:hover, .public-cover-cta:hover { background: var(--primary-hover); border-color: var(--primary-hover); transform: translateY(-1px); }
+.input, input.input, textarea.input, select.input {
+  min-height: 46px; border: 1px solid #E2E2E6; border-radius: 10px; background: #fff; color: var(--text); padding: 11px 13px; transition: border-color .18s ease, box-shadow .18s ease;
+}
+.input:focus, input.input:focus, textarea.input:focus, select.input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(215,25,32,.08); outline: none; }
+.field > span, .field label, .form label > span { color: #393940; font-weight: 800; }
+.panel, .create-flow-card, .account-section, .admin-module, .organizer-stat, .organizer-card, .auth-card, .public-results-panel {
+  border-color: var(--line); border-radius: 16px; box-shadow: var(--shadow-card);
+}
+.panel { background: #fff; }
+.top, .creator-top, .public-top { background: rgba(255,255,255,.96); border-color: var(--line); backdrop-filter: blur(16px); }
+.creator-top-inner, .public-top-inner { min-height: 72px; }
+.creator-brand-mark, .brand-mark { background: var(--primary); color: #fff; }
+.creator-nav a.active, .creator-nav a:hover { color: var(--primary); }
+.creator-logout:hover, .creator-nav a.active { border-color: rgba(215,25,32,.12); }
+.organizer-dashboard { color: var(--text); }
+.organizer-welcome { border-radius: 20px; }
+.organizer-stat { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.organizer-stat-icon { border-radius: 12px; }
+.organizer-stat-icon.red { background: var(--primary-soft); color: var(--primary); }
+.organizer-primary { border-radius: 11px; }
+.ccard, .contest-card, .candidate-card { border-radius: 16px; border-color: var(--line); box-shadow: 0 4px 18px rgba(23,23,27,.035); }
+.ccard:hover, .contest-card:hover, .candidate-card:hover { border-color: rgba(215,25,32,.35); box-shadow: var(--shadow-card); }
+.create-flow { max-width: 1040px; }
+.create-flow-heading h1, .account-heading h1, .admin-heading h1 { letter-spacing: -.045em; }
+.create-stepper { border-radius: 14px; padding: 18px 22px; box-shadow: 0 4px 18px rgba(23,23,27,.03); }
+.create-stepper > div.active > span, .create-stepper > div.done > span { border-color: var(--primary); background: var(--primary); }
+.create-flow-card { border-radius: 18px; padding: clamp(18px, 3vw, 30px); }
+.create-flow-card .form { gap: 18px; }
+.create-flow-card .form .group { border-radius: 12px; background: #FCFCFB; }
+.account-section { border-radius: 16px; padding: 24px; }
+.account-status, .admin-access { border-radius: 999px; }
+.admin-page { max-width: 1280px; }
+.admin-nav { border-radius: 13px; }
+.admin-nav button { border-radius: 10px; }
+.admin-nav button.active { border-color: rgba(215,25,32,.15); background: var(--primary-soft); color: var(--primary); box-shadow: none; }
+.admin-module { border-radius: 16px; }
+.admin-module-heading { padding: 24px 26px 20px; }
+.admin-module-content { padding: 24px 26px 28px; }
+.auth-card { border-radius: 20px; padding: clamp(22px, 4vw, 34px); }
+.auth-brand { color: var(--text); font-weight: 900; letter-spacing: -.04em; }
+.auth-page .btn-primary { border-radius: 11px; }
+.public-contest { --primary: #D71920; }
+.public-top { border-bottom: 1px solid var(--line); }
+.public-identity-mark { background: var(--contest-accent, var(--primary)); border-radius: 12px; }
+.public-cover { min-height: 440px; }
+.public-cover-inner { max-width: 1240px; }
+.public-cover-cta { display: inline-flex; align-items: center; gap: 12px; padding: 13px 19px; text-decoration: none; }
+.public-main { max-width: 1240px; }
+.public-tabs { border-radius: 12px; }
+.public-tabs button { border-radius: 9px; }
+.public-tabs button.on { background: var(--primary-soft); color: var(--primary); }
+.public-footer { background: #151515; color: #fff; }
+.public-vote-bar { border-top: 1px solid var(--line); box-shadow: 0 -8px 30px rgba(23,23,27,.08); }
+.payment-sheet { border-radius: 18px; box-shadow: 0 24px 80px rgba(0,0,0,.22); }
+.payment-sheet .methods label, .payment-card-disabled { border-radius: 11px; }
+.payment-sheet .btn-primary { border-radius: 10px; }
+.error, .notice { border-radius: 10px; }
+@media (max-width: 760px) {
+  .create-flow { padding-inline: 12px; }
+  .account-page { padding-inline: 12px; }
+  .admin-page { padding-inline: 12px; }
+  .create-flow-card, .account-section { padding: 18px 14px; }
+  .admin-module-heading { padding: 18px 16px; }
+  .admin-module-content { padding: 16px 12px 20px; }
 }
