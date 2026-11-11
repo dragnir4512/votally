@@ -1049,3 +1049,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .public-editorial-grid { grid-template-columns: 1fr; gap: 11px; }
   .public-editorial-card { padding: 19px 17px; }
 }
+
+
+/* Organizer content editor */
+.form-section { display: grid; gap: 15px; margin: 6px 0; padding: 21px; border: 1px solid #e8e8ec; border-radius: 14px; background: #fbfbfa; }
+.form-section-heading { padding-bottom: 13px; border-bottom: 1px solid #ececef; }
+.form-section-heading h2 { margin: 0; color: #1c1c21; font-size: 1.05rem; font-weight: 900; letter-spacing: -.02em; }
+.form-section-heading p { margin: 6px 0 0; color: #777780; font-size: .78rem; line-height: 1.55; }
+@media (max-width: 620px) { .form-section { padding: 16px 12px; } }
