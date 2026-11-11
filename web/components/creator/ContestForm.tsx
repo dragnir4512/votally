@@ -62,7 +62,27 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
       <L label="Description"><textarea className="input" rows={3} maxLength={5000} value={v.description} onChange={(e) => set('description', e.target.value)} /></L>
       <L label="Règlement du concours" hint="Obligatoire avant publication."><textarea className="input" rows={4} maxLength={20000} value={v.rules} onChange={(e) => set('rules', e.target.value)} /></L>
 
-      <fieldset className="group" disabled={locked}>
+            <section className="form-section" aria-labelledby="site-identity-heading">
+        <div className="form-section-heading"><h2 id="site-identity-heading">Contenu du mini-site public</h2><p>Ces informations seront visibles sur le site indépendant de votre concours.</p></div>
+        <L label="Slogan"><input className="input" maxLength={180} value={v.tagline} onChange={(e) => set('tagline', e.target.value)} placeholder="Une phrase qui présente votre concours" /></L>
+        <L label="Concept du concours"><textarea className="input" rows={4} maxLength={5000} value={v.concept} onChange={(e) => set('concept', e.target.value)} placeholder="Présentez le concept et le déroulement du concours." /></L>
+        <L label="Objectifs"><textarea className="input" rows={3} maxLength={3000} value={v.objectives} onChange={(e) => set('objectives', e.target.value)} placeholder="Quels sont les objectifs de cette compétition ?" /></L>
+        <div className="two">
+          <L label="Lieu / zone géographique"><input className="input" maxLength={180} value={v.location} onChange={(e) => set('location', e.target.value)} placeholder="Yaoundé, Cameroun" /></L>
+          <L label="Conditions d’éligibilité"><textarea className="input" rows={2} maxLength={2000} value={v.eligibility} onChange={(e) => set('eligibility', e.target.value)} /></L>
+        </div>
+        <div className="two">
+          <L label="Email de contact"><input className="input" type="email" maxLength={254} value={v.contactEmail} onChange={(e) => set('contactEmail', e.target.value)} /></L>
+          <L label="Téléphone de contact"><input className="input" type="tel" maxLength={32} value={v.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} /></L>
+        </div>
+        <div className="two">
+          <L label="Site web"><input className="input" type="url" maxLength={500} value={v.websiteUrl} onChange={(e) => set('websiteUrl', e.target.value)} placeholder="https://" /></L>
+          <L label="Instagram"><input className="input" type="url" maxLength={500} value={v.instagramUrl} onChange={(e) => set('instagramUrl', e.target.value)} placeholder="https://" /></L>
+        </div>
+        <L label="Facebook"><input className="input" type="url" maxLength={500} value={v.facebookUrl} onChange={(e) => set('facebookUrl', e.target.value)} placeholder="https://" /></L>
+      </section>
+
+<fieldset className="group" disabled={locked}>
         <legend>Type de vote {locked && <small className="muted">(verrouillé après publication)</small>}</legend>
         <div className="radios">
           {([['free', 'Gratuit'], ['paid', 'Payant'], ['mixed', 'Mixte']] as const).map(([k, label]) => (
