@@ -18,6 +18,8 @@ export default function CandidateProfileView({ contest, candidates, packs, base,
 
   const color = sanitizeColor(contest.theme?.primaryColor, '#D71920');
   const image = mediaUrl(candidate.imageKey);
+  const logoKey = typeof contest.theme?.logoKey === 'string' ? contest.theme.logoKey : null;
+  const logoUrl = logoKey ? mediaUrl(logoKey) : null;
   const starts = contest.startsAt ? new Date(contest.startsAt).getTime() : null;
   const ends = contest.endsAt ? new Date(contest.endsAt).getTime() : null;
   const notStarted = now !== null && starts !== null && now < starts;
@@ -40,7 +42,7 @@ export default function CandidateProfileView({ contest, candidates, packs, base,
       <header className="public-top">
         <div className="public-top-inner">
           <a className="public-identity" href={base || '/'} aria-label={contest.name}>
-            <span className="public-identity-mark">{(contest.organizerName || contest.name).trim().charAt(0).toUpperCase()}</span>
+            {logoUrl ? <img className="public-identity-logo" src={logoUrl} alt="" /> : <span className="public-identity-mark">{(contest.organizerName || contest.name).trim().charAt(0).toUpperCase()}</span>}
             <span className="public-identity-name">{contest.organizerName || contest.name}</span>
           </a>
           <div className="public-top-actions">
