@@ -8,7 +8,7 @@ import type { Candidate, ContestPublic, Pack } from '../lib/types';
 const contest = (over: Partial<ContestPublic> = {}): ContestPublic => ({
   id: 'c1', name: 'Miss Test', slug: 'x', description: null, rules: null, organizerName: null, status: 'active', voteType: 'paid', votePriceXaf: 100,
   currency: 'XAF', startsAt: null, endsAt: null, maxChoicesPerVote: 2, freeVotesPerPeriod: 1, freeVotePeriodHours: 24, resultsDisplay: 'realtime',
-  defaultLocale: 'fr', theme: {}, bannerKey: null, ...over });
+  defaultLocale: 'fr', theme: {}, bannerKey: null, siteContent: {}, ...over });
 const cands: Candidate[] = [
   { id: 'a', number: 1, name: 'Alice', description: null, imageKey: null },
   { id: 'b', number: 2, name: 'Bella', description: null, imageKey: null }];
