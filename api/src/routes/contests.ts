@@ -281,6 +281,16 @@ contestsRouter.post('/:id/banner', rawFile, ah(async (req, res) => {
   res.status(201).json({ bannerKey: key });
 }));
 
+contestsRouter.post('/:id/logo', rawFile, ah(async (req, res) => {
+  const id = uuidParam(req, 'id');
+  await needRole(req, id, ['owner', 'manager']);
+  await checkQuota(req.user!.id, ['contest_logo', 'contest_banner', 'candidate_image'], 300);
+  const data = await processImage(bodyBuffer(req), 'logo');
+  const key = await storeFile({ userId: req.user!.id, data, ext: 'webp', contentType: 'image/webp', purpose: 'contest_logo', visibility: 'public' });
+  const row = await q("UPDATE contests SET theme = jsonb_set(theme, '{logoKey}', to_jsonb($2::text), true) WHERE id = $1 RETURNING theme", [id, key]);
+  res.status(201).json({ logoKey: row.rows[0].theme.logoKey });
+}));
+
 // ---------- Packs de votes ----------
 contestsRouter.post('/:id/packs', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
