@@ -5,7 +5,16 @@ import { config } from './config.js';
 pg.types.setTypeParser(20, (v) => parseInt(v, 10));
 pg.types.setTypeParser(1700, (v) => Number(v));
 
-export const pool = new pg.Pool({ connectionString: config.DATABASE_URL, max: 20 });
+export const pool = new pg.Pool({
+  connectionString: config.DATABASE_URL,
+  max: config.DB_POOL_MAX,
+  connectionTimeoutMillis: config.DB_CONNECTION_TIMEOUT_MS,
+  idleTimeoutMillis: config.DB_IDLE_TIMEOUT_MS,
+  statement_timeout: config.DB_STATEMENT_TIMEOUT_MS,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10_000,
+  application_name: 'votally-api',
+});
 export type Db = pg.PoolClient;
 
 export const q = <T extends pg.QueryResultRow = any>(text: string, params?: unknown[]) => pool.query<T>(text, params as any[]);
