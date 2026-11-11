@@ -167,7 +167,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
             )}
 
             {mode === 'free' && <p className="muted small">{t('freeVoteInfo', { n: contest.freeVotesPerPeriod, h: contest.freeVotePeriodHours })}</p>}
-            {freeTooMany && <p className="error">{t('freeLimit', { n: contest.freeVotesPerPeriod })}</p>}
+            {freeTooMany && <p className="error">{t('freeLimit', { n: contest.maxChoicesPerVote })}</p>}
 
             {mode === 'paid' && (
               <>
