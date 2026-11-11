@@ -42,7 +42,7 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
     <section>
       <div className="panel">
         <h3>Logo du concours</h3>
-        {typeof contest.theme?.logoKey === 'string' && <img className="contest-logo-preview" src={mediaUrl(contest.theme.logoKey)} alt="Logo du concours" />}
+        {typeof contest.theme?.logoKey === 'string' && <img className="contest-logo-preview" src={mediaUrl(contest.theme.logoKey) ?? undefined} alt="Logo du concours" />}
         <label className="btn btn-outline sm filebtn">{typeof contest.theme?.logoKey === 'string' ? 'Changer le logo' : 'Ajouter un logo'}<input type="file" accept="image/*" hidden onChange={(e) => { logo(e.target.files?.[0]); e.target.value = ''; }} /></label>
         <p className="muted small">Image carrée, recadrée automatiquement en WebP.</p>
       </div>
