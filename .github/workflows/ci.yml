@@ -1,0 +1,80 @@
+name: VOTALLY CI
+
+on:
+  push:
+    branches:
+      - feature/votally-figma-redesign
+  pull_request:
+    branches:
+      - main
+      - feature/votally-figma-redesign
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API — migrations, typecheck and tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: votally
+          POSTGRES_PASSWORD: votally
+          POSTGRES_DB: votally_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U votally -d votally_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://votally:votally@localhost:5432/votally_test
+      JWT_SECRET: test-secret-0123456789abcdef
+      PHONE_HASH_PEPPER: test-pepper-0123456789abcdef
+      BCRYPT_COST: 4
+      NODE_ENV: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            api/package-lock.json
+            web/package-lock.json
+      - name: Install root migration dependency
+        run: npm install --no-audit --no-fund
+      - name: Install API dependencies
+        run: npm ci --prefix api --no-audit --no-fund
+      - name: Apply database migrations
+        run: node scripts/migrate.js up
+      - name: API TypeScript check
+        run: npm --prefix api run typecheck
+      - name: API test suite
+        run: npm --prefix api test
+
+  web:
+    name: Web — typecheck, tests and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        run: npm ci --prefix web --no-audit --no-fund
+      - name: Web TypeScript check
+        run: npm --prefix web run typecheck
+      - name: Web test suite
+        run: npm --prefix web test
+      - name: Next.js production build
+        run: npm --prefix web run build
