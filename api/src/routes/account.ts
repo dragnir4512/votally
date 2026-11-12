@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ah, HttpError, toCamel } from '../http.js';
 import { q, withTx } from '../db.js';
 import { consumeOtp, issueOtp, normalizePhone, requireAuth } from '../security.js';
-import { defaultProvider, sms } from '../providers.js';
+import { defaultPayoutProvider, sms } from '../providers.js';
 import { dispatchPayout } from '../payouts.js';
 import { isProd } from '../config.js';
 import { sniffDocument } from '../images.js';
@@ -96,7 +96,7 @@ accountRouter.get('/payouts', ah(async (req, res) => {
 const amountSchema = z.coerce.number().int().min(1).max(100_000_000);
 accountRouter.get('/payouts/quote', ah(async (req, res) => {
   const amountXaf = amountSchema.parse(req.query.amountXaf);
-  const feeXaf = defaultProvider().estimatePayoutFee(amountXaf);
+  const feeXaf = defaultPayoutProvider().estimatePayoutFee(amountXaf);
   res.json({ amountXaf, feeXaf, netXaf: amountXaf - feeXaf });
 }));
 
@@ -111,7 +111,7 @@ accountRouter.post('/payouts/otp', ah(async (req, res) => {
 accountRouter.post('/payouts', ah(async (req, res) => {
   const b = z.object({ amountXaf: z.number().int().min(1), code: z.string().regex(/^\d{6}$/) }).parse(req.body);
   const k = await approvedKyc(req.user!.id);
-  const provider = defaultProvider();
+  const provider = defaultPayoutProvider();
   const fee = provider.estimatePayoutFee(b.amountXaf);
   if (b.amountXaf - fee <= 0) throw new HttpError(400, 'Montant trop faible', 'amount_too_low');
   if (!(await consumeOtp('payout', k.payout_phone, b.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');

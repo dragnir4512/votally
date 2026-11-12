@@ -7,3 +7,4 @@ next-env.d.ts
 uploads
 api/uploads
 cookies.txt
+api-test.log

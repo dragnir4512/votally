@@ -8,7 +8,13 @@ import ShareBar from './ShareBar';
 
 type Step = 'form' | 'code' | 'pending' | 'done' | 'failed';
 interface Quote { votes: number; subtotalXaf: number; feeXaf: number; totalXaf: number }
-interface Order { reference: string; totalXaf: number; expiresAt: string }
+interface Order {
+  reference: string;
+  totalXaf: number;
+  expiresAt: string;
+  authorizationUrl?: string | null;
+  instructions?: string;
+}
 
 export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl, onClose }:
   { contest: ContestPublic; packs: Pack[]; selected: Candidate[]; lang: Lang; tt: T; shareUrl: string; onClose: () => void }) {
@@ -19,6 +25,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
   const [mode, setMode] = useState<'free' | 'paid'>(canFree ? 'free' : 'paid');
   const [step, setStep] = useState<Step>('form');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
   const [method, setMethod] = useState<PayMethod>('mtn_momo');
@@ -89,10 +96,25 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
     setReceipt(r.reference); setStep('done');
   });
   const submitPaid = () => guarded(async () => {
-    const o = await api<Order & { status: string }>(`/public/contests/${slug}/orders`,
-      { body: { method, phone: needsPhone ? phone : undefined, packId: pack?.id, choices, locale: lang }, headers: { 'Idempotency-Key': idem.current } });
-    setOrder(o); setStep('pending');
+  const o = await api<Order & { status: string }>(`/public/contests/${slug}/orders`, {
+    body: {
+      method,
+      phone: needsPhone ? phone : undefined,
+      email: email.trim(),
+      packId: pack?.id,
+      choices,
+      locale: lang,
+    },
+    headers: { 'Idempotency-Key': idem.current },
   });
+
+  setOrder(o);
+  setStep('pending');
+
+  if (o.authorizationUrl) {
+    window.location.assign(o.authorizationUrl);
+  }
+});
   const simulate = () => guarded(async () => { if (order) await api(`/dev/mock-pay/orders/${order.reference}`, { body: {} }); });
 
   const setQ = (id: string, n: number) => setQty((q) => ({ ...q, [id]: Math.min(100000, Math.max(1, Math.floor(n) || 1)) }));
@@ -209,7 +231,22 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
                   </div>
                 </fieldset>
               </>
-            )}
+            )}{mode === 'paid' && (
+  <label className="field">
+    <span>{lang === 'fr' ? 'Adresse e-mail' : 'Email address'}</span>
+    <input
+      type="email"
+      autoComplete="email"
+      value={email}
+      placeholder="exemple@email.com"
+      onChange={(e) => setEmail(e.target.value)}
+      required
+    />
+  </label>
+)}
+
+
+
 
             {needsPhone && (
               <label className="field"><span>{t('phone')}</span>

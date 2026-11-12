@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ah, HttpError, toCamel } from '../http.js';
 import { q, withTx, type Db } from '../db.js';
 import { consumeOtp, hashTarget, issueOtp, maskPhone, normalizePhone } from '../security.js';
-import { defaultProvider, sms, type PaymentMethod } from '../providers.js';
+import { defaultPaymentProvider, sms, type PaymentMethod } from '../providers.js';
 import { isProd } from '../config.js';
 
 export const publicRouter = Router();
@@ -122,6 +122,7 @@ async function priceFor(c: any, body: { packId?: string; choices: { quantity: nu
 const orderSchema = z.object({
   method: z.enum(['mtn_momo', 'orange_money']),
   phone: z.string().optional(),
+  email: z.string().email('Adresse e-mail invalide').optional(),
   packId: z.string().uuid().optional(),
   choices: choicesSchema,
   locale: z.enum(['fr', 'en']).optional(),
@@ -134,7 +135,7 @@ publicRouter.post('/contests/:slug/quote', ah(async (req, res) => {
   if (c.status !== 'active' || !['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
   assertChoiceCount(c, body.choices);
   const { votes, subtotal } = await priceFor(c, body);
-  const fee = defaultProvider().estimateFee(subtotal);
+  const fee = defaultPaymentProvider().estimateFee(subtotal);
   res.json({ votes, subtotalXaf: subtotal, feeXaf: fee, totalXaf: subtotal + fee, currency: 'XAF' });
 }));
 
@@ -144,16 +145,49 @@ publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
   const c = await loadPublicContest(req, req.params.slug as string);
   if (c.status !== 'active' || !['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
   if (!body.phone) throw new HttpError(400, 'Numéro Mobile Money requis', 'phone_required');
-  const phone = normalizePhone(body.phone);
-  assertChoiceCount(c, body.choices);
+ const phone = normalizePhone(body.phone);
+const provider = defaultPaymentProvider();
+
+if (provider.name === 'notchpay' && !body.email) {
+  throw new HttpError(400, 'Adresse e-mail requise pour le paiement', 'email_required');
+}
+
+assertChoiceCount(c, body.choices);
 
   // Rejeu avec la même clé : on renvoie la commande existante
   if (idem) {
-    const ex = (await q('SELECT reference, status, subtotal_xaf, fee_xaf, total_xaf FROM vote_orders WHERE idempotency_key = $1 AND contest_id = $2', [idem, c.id])).rows[0];
-    if (ex) return res.json({ reference: ex.reference, status: ex.status, subtotalXaf: ex.subtotal_xaf, feeXaf: ex.fee_xaf, totalXaf: ex.total_xaf, replayed: true });
+
+    const ex = (await q(
+      `SELECT
+         o.reference,
+         o.status,
+         o.subtotal_xaf,
+         o.fee_xaf,
+         o.total_xaf,
+         o.expires_at,
+         p.authorization_url
+       FROM vote_orders o
+       LEFT JOIN payments p ON p.order_id = o.id
+       WHERE o.idempotency_key = $1
+         AND o.contest_id = $2`,
+      [idem, c.id],
+    )).rows[0];
+
+    if (ex) {
+      return res.json({
+        reference: ex.reference,
+        status: ex.status,
+        subtotalXaf: ex.subtotal_xaf,
+        feeXaf: ex.fee_xaf,
+        totalXaf: ex.total_xaf,
+        expiresAt: ex.expires_at,
+        authorizationUrl: ex.authorization_url ?? null,
+        replayed: true,
+      });
+    }
+
   }
 
-  const provider = defaultProvider();
   const created = await withTx(null, async (cx) => {
     await assertCandidates(cx, c.id, body.choices);
     const { votes, subtotal, packId } = await priceFor(c, body);
@@ -176,25 +210,66 @@ publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
       await cx.query('INSERT INTO vote_order_choices (order_id, contest_id, candidate_id, quantity) VALUES ($1,$2,$3,$4)', [o.id, c.id, ch.candidateId, ch.quantity]);
     }
     const pay = (await cx.query(
-      `INSERT INTO payments (order_id, provider, method, amount_xaf, fee_xaf, payer_phone_masked) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-      [o.id, provider.name, body.method, subtotal + fee, fee, maskPhone(phone)])).rows[0];
+       `INSERT INTO payments (
+    order_id, provider, method, amount_xaf, fee_xaf,
+    payer_phone_masked, payer_email
+  )
+  VALUES ($1,$2,$3,$4,$5,$6,$7)
+  RETURNING id`,
+  [
+    o.id,
+    provider.name,
+    body.method,
+    subtotal + fee,
+    fee,
+    maskPhone(phone),
+    body.email ?? null,
+  ],
+)).rows[0];
     return { order: o, paymentId: pay.id as string, subtotal, fee, total: subtotal + fee, votes };
   });
 
   // Appel à l'agrégateur HORS transaction ; en cas d'échec, le paiement est clos proprement
+  let authorizationUrl: string | undefined;
+
   try {
-    const { providerReference } = await provider.initiate({ reference: created.order.reference, amountXaf: created.total, method: body.method as PaymentMethod, phone });
-    await q(`UPDATE payments SET provider_reference = $2, status = 'pending' WHERE id = $1`, [created.paymentId, providerReference]);
+    const { providerReference, authorizationUrl: paymentUrl } = await provider.initiate({
+  reference: created.order.reference,
+  amountXaf: created.total,
+  method: body.method as PaymentMethod,
+  phone,
+  email: body.email,
+});
+
+authorizationUrl = paymentUrl;
+
+await q(
+  `UPDATE payments
+   SET provider_reference = $2,
+       authorization_url = $3,
+       status = 'pending'
+   WHERE id = $1`,
+  [created.paymentId, providerReference, authorizationUrl ?? null],
+);
   } catch (e) {
     console.error('[paiement] initiation refusée', e);
     await q('SELECT fail_payment($1, $2)', [created.paymentId, 'initiation impossible']);
     throw new HttpError(502, 'Le service de paiement est indisponible, réessaie dans un instant', 'provider_unavailable');
   }
   res.status(201).json({
-    reference: created.order.reference, status: 'pending', votes: created.votes,
-    subtotalXaf: created.subtotal, feeXaf: created.fee, totalXaf: created.total, currency: 'XAF', expiresAt: created.order.expires_at,
-    instructions: 'Valide la demande de paiement reçue sur ton téléphone (code USSD)',
-  });
+  reference: created.order.reference,
+  status: 'pending',
+  votes: created.votes,
+  subtotalXaf: created.subtotal,
+  feeXaf: created.fee,
+  totalXaf: created.total,
+  currency: 'XAF',
+  expiresAt: created.order.expires_at,
+  authorizationUrl: authorizationUrl ?? null,
+  instructions: authorizationUrl
+    ? 'Finalise ton paiement sur la page sécurisée de Notch Pay.'
+    : 'Valide la demande de paiement reçue sur ton téléphone (code USSD)',
+});
 }));
 
 // Reçu / suivi : aucune donnée personnelle ; la référence est aléatoire (CSPRNG)

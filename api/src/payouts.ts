@@ -1,5 +1,5 @@
 import { q, withTx } from './db.js';
-import { defaultProvider } from './providers.js';
+import { defaultPayoutProvider } from './providers.js';
 
 /**
  * Envoie un retrait à l'agrégateur puis enregistre le résultat.
@@ -11,7 +11,7 @@ export async function dispatchPayout(payoutId: string): Promise<string> {
     `SELECT p.id, p.status, p.net_xaf, p.method, k.payout_phone, k.payout_account_name
        FROM payouts p JOIN creator_kyc k ON k.id = p.kyc_id WHERE p.id = $1`, [payoutId])).rows[0];
   if (!row || !['requested', 'processing'].includes(row.status)) return row?.status ?? 'unknown';
-  const provider = defaultProvider();
+  const provider = defaultPayoutProvider();
 
   let r;
   try {
@@ -40,7 +40,7 @@ async function applyPayoutResult(id: string, providerName: string, r: { status: 
 
 /** Tâche de fond : règle les retraits restés en cours ou incertains. Idempotent. */
 export async function settlePayouts(olderThanSeconds = 30): Promise<{ checked: number; settled: number }> {
-  const provider = defaultProvider();
+  const provider = defaultPayoutProvider();
   const rows = (await q(
     `SELECT id, status FROM payouts WHERE status IN ('requested','processing') AND requested_at < now() - make_interval(secs => $1::int) ORDER BY requested_at LIMIT 50`,
     [olderThanSeconds])).rows;

@@ -14,11 +14,33 @@ const schema = z.object({
   BCRYPT_COST: z.coerce.number().int().min(4).max(15).default(12),
   // Frais de transaction estimés (points de base) affichés au votant. 250 = 2,5 %. À remplacer par le barème réel de l'agrégateur.
   FEE_RATE_BPS: z.coerce.number().int().min(0).max(1000).default(250),
-  PAYMENT_PROVIDER: z.enum(['mock']).default('mock'),
+  PAYMENT_PROVIDER: z.enum(['mock', 'notchpay']).default('mock'),
   MOCK_WEBHOOK_SECRET: z.string().min(8).default('mock-secret-change-me'),
+    // --- Notch Pay : paiements entrants ---
+  NOTCHPAY_PUBLIC_KEY: z.string().min(1).optional(),
+  NOTCHPAY_HASH_KEY: z.string().min(1).optional(),
+  NOTCHPAY_CALLBACK_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3001'),
   // Dossier des fichiers téléversés (développement / serveur unique). En production : stockage objet S3 (voir storage.ts).
   UPLOAD_DIR: z.string().default('./uploads'),
+}).superRefine((data, ctx) => {
+  if (data.PAYMENT_PROVIDER === 'notchpay') {
+    const requiredKeys = [
+      'NOTCHPAY_PUBLIC_KEY',
+      'NOTCHPAY_HASH_KEY',
+      'NOTCHPAY_CALLBACK_URL',
+    ] as const;
+
+    for (const key of requiredKeys) {
+      if (!data[key]) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: `${key} est obligatoire lorsque PAYMENT_PROVIDER=notchpay`,
+        });
+      }
+    }
+  }
 });
 
 const parsed = schema.safeParse(process.env);

@@ -51,7 +51,11 @@ webhooksRouter.post('/payments/:provider', ah(async (req, res) => {
   const provider = getPaymentProvider(req.params.provider as string);
   if (!provider) throw new HttpError(404, 'Agrégateur inconnu', 'not_found');
   const raw: Buffer = req.body;
-  if (!Buffer.isBuffer(raw) || !provider.verifyWebhookSignature(raw, req.header('x-signature') ?? undefined)) {
+  const signatureHeader = provider.name === 'notchpay'
+  ? 'x-notch-signature'
+  : 'x-signature';
+
+if (!Buffer.isBuffer(raw) || !provider.verifyWebhookSignature(raw, req.header(signatureHeader) ?? undefined)) {
     throw new HttpError(401, 'Signature invalide', 'bad_signature');
   }
   let payload: any;

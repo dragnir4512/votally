@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { config, isProd, isTest } from './config.js';
+import { notchPayProvider } from './providers/notchpay.js';
 
 // ============ SMS ============
 export interface SmsProvider { send(to: string, message: string): Promise<void>; }
@@ -22,7 +23,16 @@ export interface PaymentProvider {
   readonly name: string;
   /** Frais de transaction affichés au votant AVANT paiement (FCFA entiers). */
   estimateFee(subtotalXaf: number): number;
-  initiate(i: { reference: string; amountXaf: number; method: PaymentMethod; phone?: string }): Promise<{ providerReference: string }>;
+    initiate(i: {
+    reference: string;
+    amountXaf: number;
+    method: PaymentMethod;
+    phone?: string;
+    email?: string;
+  }): Promise<{
+    providerReference: string;
+    authorizationUrl?: string;
+  }>;
   /** Vérification serveur à serveur : on ne se fie JAMAIS au seul contenu du webhook. */
   verify(providerReference: string): Promise<{ status: ProviderStatus; amountXaf?: number }>;
   verifyWebhookSignature(rawBody: Buffer, signature: string | undefined): boolean;
@@ -66,7 +76,7 @@ export const mockProvider: PaymentProvider & {
   setPayoutStatus(reference, status) { const p = mockPayouts.get(reference); if (p) p.status = status; },
   name: 'mock',
   estimateFee: (subtotal) => Math.ceil((subtotal * config.FEE_RATE_BPS) / 10_000),
-  async initiate({ amountXaf }) {
+  async initiate({ amountXaf, email }) {
     const providerReference = 'MOCK-' + randomUUID();
     mockPayments.set(providerReference, { status: 'pending', amountXaf });
     return { providerReference };
@@ -86,6 +96,15 @@ export const mockProvider: PaymentProvider & {
   parseWebhook: (body) => ({ eventId: String(body.eventId), providerReference: String(body.providerReference) }),
 };
 
-const providers: Record<string, PaymentProvider> = { mock: mockProvider };
+const providers: Record<string, PaymentProvider> = {
+  mock: mockProvider,
+  notchpay: notchPayProvider,
+};
+
 export const getPaymentProvider = (name: string) => providers[name];
-export const defaultProvider = () => providers[config.PAYMENT_PROVIDER]!;
+
+/** Fournisseur utilisé pour les paiements des votes. */
+export const defaultPaymentProvider = () => providers[config.PAYMENT_PROVIDER]!;
+
+/** Fournisseur utilisé pour les retraits des créateurs. */
+export const defaultPayoutProvider = () => mockProvider;
