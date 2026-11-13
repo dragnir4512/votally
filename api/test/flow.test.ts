@@ -210,6 +210,51 @@ describe('Concours : règles métier', () => {
     expect((await viewer.agent.get(`/contests/${c.id}/dashboard`)).body.dashboard.grossXaf).toBeUndefined();
     expect((await owner.agent.get(`/contests/${c.id}/dashboard`)).body.dashboard.grossXaf).toBe(0);
   });
+
+  it('applique la matrice owner / manager / viewer et protège les données financières', async () => {
+    const owner = await signup(); const manager = await signup(); const viewer = await signup();
+    const c = await createContest(owner.agent);
+    await owner.agent.post(`/contests/${c.id}/actions/activate`).expect(200);
+    const order = await request(app).post(`/public/contests/${c.slug}/orders`)
+      .send({ method: 'mtn_momo', phone: '691234567', choices: [{ candidateId: c.candidates[0]!.id, quantity: 1 }] });
+    expect(order.status).toBe(201);
+
+    const managerInvite = await owner.agent.post(`/contests/${c.id}/members/invite`).send({ role: 'manager' });
+    const viewerInvite = await owner.agent.post(`/contests/${c.id}/members/invite`).send({ role: 'viewer' });
+    await manager.agent.post('/contests/invitations/accept').send({ token: managerInvite.body.inviteToken }).expect(200);
+    await viewer.agent.post('/contests/invitations/accept').send({ token: viewerInvite.body.inviteToken }).expect(200);
+
+    // Gestionnaire : contenu et suivi opérationnel autorisés.
+    await manager.agent.patch(`/contests/${c.id}`).send({ description: 'Description mise à jour par le gestionnaire' }).expect(200);
+    await manager.agent.get(`/contests/${c.id}/results`).expect(200);
+    const managerOrders = await manager.agent.get(`/contests/${c.id}/orders`).expect(200);
+    expect(managerOrders.body.orders[0].totalXaf).toBeUndefined();
+    expect(managerOrders.body.orders[0].subtotalXaf).toBeUndefined();
+    await manager.agent.post(`/contests/${c.id}/candidates`).send([{ name: 'Candidat gestionnaire' }]).expect(201);
+
+    // Paramètres sensibles, tarifs et cycle de vie : propriétaire uniquement.
+    await manager.agent.patch(`/contests/${c.id}`).send({ votePriceXaf: 200 }).expect(403);
+    await manager.agent.post(`/contests/${c.id}/packs`).send({ votesCount: 10, priceXaf: 900 }).expect(403);
+    await manager.agent.post(`/contests/${c.id}/actions/pause`).expect(403);
+    await manager.agent.post(`/contests/${c.id}/members/invite`).send({ role: 'viewer' }).expect(403);
+    const memberRows = (await manager.agent.get(`/contests/${c.id}/members`).expect(200)).body.members;
+    await manager.agent.patch(`/contests/${c.id}/members/${memberRows[0].id}`).send({ role: 'viewer' }).expect(403);
+
+    // Observateur : consultation seulement, aucun accès aux commandes ou à l'équipe.
+    await viewer.agent.get(`/contests/${c.id}/dashboard`).expect(200);
+    await viewer.agent.get(`/contests/${c.id}/results`).expect(200);
+    await viewer.agent.get(`/contests/${c.id}/orders`).expect(403);
+    await viewer.agent.get(`/contests/${c.id}/members`).expect(403);
+    await viewer.agent.post(`/contests/${c.id}/candidates`).send([{ name: 'Tentative observateur' }]).expect(403);
+    await viewer.agent.delete(`/contests/${c.id}`).expect(403);
+
+    // Seul le propriétaire peut faire évoluer un collaborateur entre les deux rôles délégués.
+    const ownerMembers = (await owner.agent.get(`/contests/${c.id}/members`).expect(200)).body.members;
+    const managerMember = ownerMembers.find((m: { role: string }) => m.role === 'manager');
+    expect(managerMember).toBeTruthy();
+    await owner.agent.patch(`/contests/${c.id}/members/${managerMember.id}`).send({ role: 'viewer' }).expect(200);
+    expect((await manager.agent.get(`/contests/${c.id}`)).body.myRole).toBe('viewer');
+  });
 });
 
 describe('Vote payant de bout en bout', () => {
