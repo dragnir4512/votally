@@ -154,13 +154,6 @@ contestsRouter.get('/:id', ah(async (req, res) => {
   res.json({ contest: publicContest(c), myRole: role });
 }));
 
-// Le gestionnaire pilote le contenu et les opérations ; les paramètres structurants du vote restent au propriétaire.
-const OWNER_ONLY_PATCH_FIELDS = new Set([
-  'slug', 'voteType', 'votePriceXaf', 'maxChoicesPerVote',
-  'freeVotesPerPeriod', 'freeVotePeriodHours', 'startsAt', 'endsAt',
-  'visibility', 'accessPassword', 'resultsDisplay',
-]);
-
 contestsRouter.patch('/:id', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
   const role = await needRole(req, id, ['owner', 'manager']);
@@ -171,7 +164,7 @@ contestsRouter.patch('/:id', ah(async (req, res) => {
   if (!current) throw new HttpError(404, 'Concours introuvable', 'not_found');
   if (role !== 'owner') {
     const sameDate = (a: unknown, b: unknown) => a == null && b == null ||
-      a != null && b != null && new Date(a as string | Date).getTime() === new Date(b as string | Date).getTime();
+      a != null && b != null && new Date(a as any).getTime() === new Date(b as any).getTime();
     const restrictedChange =
       b.slug !== undefined && String(b.slug).toLowerCase() !== String(current.slug).toLowerCase() ||
       b.voteType !== undefined && b.voteType !== current.vote_type ||
