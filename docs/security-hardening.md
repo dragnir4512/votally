@@ -25,6 +25,7 @@ Ce bloc ajoute des contrôles de défense en profondeur à l'API. Les contrôles
 - Limitation de débit différenciée pour connexion, inscription, vérification OTP, renvoi OTP, récupération/réinitialisation de mot de passe, fichiers, paiements et routes publiques.
 - Compteurs de débit persistés dans PostgreSQL : ils sont partagés entre plusieurs instances API et ne dépendent pas de la mémoire d'un seul processus. Les adresses IP sont pseudonymisées par HMAC avant stockage.
 - Nettoyage périodique des compteurs expirés.
+- Les événements d'authentification (échecs et succès de connexion, vérification du compte, réinitialisation du mot de passe et révocation de sessions) sont inscrits dans le journal d'audit existant. Les identifiants utilisés pour les échecs sont pseudonymisés.
 - Les journaux d'erreur n'enregistrent plus les paramètres de requête ni l'objet d'erreur complet, et les réponses ne divulguent plus les noms de contraintes SQL.
 
 ### Configuration de production
