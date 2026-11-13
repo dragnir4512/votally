@@ -34,9 +34,18 @@ const schema = z.object({
     if (data.PHONE_HASH_PEPPER.length < 32) {
       ctx.addIssue({ code: 'custom', path: ['PHONE_HASH_PEPPER'], message: '32 caractères minimum en production' });
     }
-    const origins = data.CORS_ORIGINS.split(',').map((s) => s.trim().toLowerCase());
-    if (!origins.length || origins.some((origin) => !origin.startsWith('https://') || origin === 'https://*')) {
-      ctx.addIssue({ code: 'custom', path: ['CORS_ORIGINS'], message: 'En production, seules des origines HTTPS explicites sont autorisées' });
+    const origins = data.CORS_ORIGINS.split(',').map((s) => s.trim());
+    const invalidOrigin = origins.length === 0 || origins.some((origin) => {
+      try {
+        const parsedOrigin = new URL(origin);
+        return parsedOrigin.protocol !== 'https:' || parsedOrigin.origin !== origin || origin.includes('*');
+      } catch { return true; }
+    });
+    if (invalidOrigin) {
+      ctx.addIssue({ code: 'custom', path: ['CORS_ORIGINS'], message: 'En production, seules des origines HTTPS exactes (sans chemin ni joker) sont autorisées' });
+    }
+    if (data.JWT_SECRET.startsWith('remplace-moi-') || data.PHONE_HASH_PEPPER.startsWith('remplace-moi-')) {
+      ctx.addIssue({ code: 'custom', path: ['JWT_SECRET'], message: 'Les valeurs d’exemple doivent être remplacées par des secrets aléatoires' });
     }
     if (!data.RESEND_API_KEY || !data.EMAIL_FROM) {
       ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY et EMAIL_FROM sont obligatoires en production pour la récupération de compte par email' });
