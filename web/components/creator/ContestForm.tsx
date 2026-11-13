@@ -7,8 +7,8 @@ function L({ label, children, hint }: { label: string; children: React.ReactNode
   return <label className="field"><span>{label}</span>{children}{hint && <small className="muted">{hint}</small>}</label>;
 }
 
-export default function ContestForm({ initial = emptyForm, locked, submitLabel, existingTheme, hasExistingPassword = false, onSubmit }:
-  { initial?: FormValues; locked: boolean; submitLabel: string; existingTheme?: Record<string, unknown>; hasExistingPassword?: boolean; onSubmit: (body: Record<string, unknown>) => Promise<void> }) {
+export default function ContestForm({ initial = emptyForm, locked, submitLabel, existingTheme, hasExistingPassword = false, isOwner = true, onSubmit }:
+  { initial?: FormValues; locked: boolean; submitLabel: string; existingTheme?: Record<string, unknown>; hasExistingPassword?: boolean; isOwner?: boolean; onSubmit: (body: Record<string, unknown>) => Promise<void> }) {
   const [v, setV] = useState<FormValues>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +56,7 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
 
   return (
     <form className="form" onSubmit={submit}>
+      {!isOwner && <p className="muted small">Les paramètres de vote, les tarifs, les dates et la visibilité sont réservés au propriétaire du concours.</p>}
       <L label="Nom du concours *"><input className="input" required minLength={3} maxLength={120} value={v.name} onChange={(e) => set('name', e.target.value)} placeholder="Miss Yaoundé 2026" /></L>
       <L label="Organisateur"><input className="input" maxLength={120} value={v.organizerName} onChange={(e) => set('organizerName', e.target.value)} placeholder="Nom de votre structure" /></L>
       <L label="Catégorie" hint="Facultatif : beauté, sport, culture, entrepreneuriat…"><input className="input" maxLength={80} value={v.category} onChange={(e) => set('category', e.target.value)} placeholder="Ex. : Beauté et culture" /></L>
@@ -82,7 +83,7 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
         <L label="Facebook"><input className="input" type="url" maxLength={500} value={v.facebookUrl} onChange={(e) => set('facebookUrl', e.target.value)} placeholder="https://" /></L>
       </section>
 
-<fieldset className="group" disabled={locked}>
+<fieldset className="group" disabled={locked || !isOwner}>
         <legend>Type de vote {locked && <small className="muted">(verrouillé après publication)</small>}</legend>
         <div className="radios">
           {([['free', 'Gratuit'], ['paid', 'Payant'], ['mixed', 'Mixte']] as const).map(([k, label]) => (
@@ -96,24 +97,24 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
 
       {free && (
         <div className="two">
-          <L label="Votes gratuits par numéro"><input className="input" type="number" min={0} max={100} step={1} required value={v.freeVotesPerPeriod} onChange={(e) => set('freeVotesPerPeriod', e.target.value)} /></L>
-          <L label="…toutes les (heures)"><input className="input" type="number" min={1} max={720} step={1} required value={v.freeVotePeriodHours} onChange={(e) => set('freeVotePeriodHours', e.target.value)} /></L>
+          <L label="Votes gratuits par numéro"><input className="input" type="number" min={0} max={100} step={1} required disabled={!isOwner} value={v.freeVotesPerPeriod} onChange={(e) => set('freeVotesPerPeriod', e.target.value)} /></L>
+          <L label="…toutes les (heures)"><input className="input" type="number" min={1} max={720} step={1} required disabled={!isOwner} value={v.freeVotePeriodHours} onChange={(e) => set('freeVotePeriodHours', e.target.value)} /></L>
         </div>
       )}
       <div className="two">
-        <L label="Début du vote"><input className="input" type="datetime-local" value={v.startsAt} onChange={(e) => set('startsAt', e.target.value)} /></L>
-        <L label="Fin du vote" hint="La date de fin doit être postérieure à la date de début."><input className="input" type="datetime-local" value={v.endsAt} onChange={(e) => set('endsAt', e.target.value)} /></L>
+        <L label="Début du vote"><input className="input" type="datetime-local" disabled={!isOwner} value={v.startsAt} onChange={(e) => set('startsAt', e.target.value)} /></L>
+        <L label="Fin du vote" hint="La date de fin doit être postérieure à la date de début."><input className="input" type="datetime-local" disabled={!isOwner} value={v.endsAt} onChange={(e) => set('endsAt', e.target.value)} /></L>
       </div>
       <div className="two">
-        <L label="Résultats"><select className="input" value={v.resultsDisplay} onChange={(e) => set('resultsDisplay', e.target.value as FormValues['resultsDisplay'])}>
+        <L label="Résultats"><select className="input" disabled={!isOwner} value={v.resultsDisplay} onChange={(e) => set('resultsDisplay', e.target.value as FormValues['resultsDisplay'])}>
           <option value="realtime">Publics en temps réel</option><option value="on_close">Publics à la clôture</option><option value="hidden">Non publics</option></select></L>
         <L label="Langue par défaut"><select className="input" value={v.defaultLocale} onChange={(e) => set('defaultLocale', e.target.value as 'fr' | 'en')}>
           <option value="fr">Français</option><option value="en">English</option></select></L>
       </div>
       <div className="two">
-        <L label="Accès"><select className="input" value={v.visibility} onChange={(e) => set('visibility', e.target.value as 'public' | 'private')}>
+        <L label="Accès"><select className="input" disabled={!isOwner} value={v.visibility} onChange={(e) => set('visibility', e.target.value as 'public' | 'private')}>
           <option value="public">Public</option><option value="private">Privé (mot de passe)</option></select></L>
-        {v.visibility === 'private' && <L label="Mot de passe" hint={hasExistingPassword ? 'Laisser vide pour conserver le mot de passe actuel.' : 'Obligatoire pour protéger un concours privé.'}><input className="input" type="password" autoComplete="new-password" minLength={4} maxLength={100} required={!hasExistingPassword} value={v.accessPassword} onChange={(e) => set('accessPassword', e.target.value)} /></L>}
+        {v.visibility === 'private' && <L label="Mot de passe" hint={hasExistingPassword ? 'Laisser vide pour conserver le mot de passe actuel.' : 'Obligatoire pour protéger un concours privé.'}><input className="input" type="password" disabled={!isOwner} autoComplete="new-password" minLength={4} maxLength={100} required={!hasExistingPassword} value={v.accessPassword} onChange={(e) => set('accessPassword', e.target.value)} /></L>}
       </div>
       <L label="Couleur principale"><input className="color" type="color" value={v.primaryColor} onChange={(e) => set('primaryColor', e.target.value)} /></L>
 
