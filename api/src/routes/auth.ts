@@ -53,7 +53,7 @@ authRouter.post('/verify', ah(async (req, res) => {
   const existing = (await q(emailAddress
     ? 'SELECT id, account_status FROM users WHERE email = $1 AND deleted_at IS NULL'
     : 'SELECT id, account_status FROM users WHERE phone = $1 AND deleted_at IS NULL', [emailAddress ?? phone])).rows[0];
-  if (!existing) throw new HttpError(404, 'Compte introuvable', 'not_found');
+  if (!existing) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   if (existing.account_status !== 'active') throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
   if (!(await consumeOtp('signup', (emailAddress ?? phone)!, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   const r = await q(emailAddress
@@ -78,7 +78,7 @@ authRouter.post('/resend-code', ah(async (req, res) => {
   catch (error) { if (error instanceof HttpError && error.code === 'otp_throttled') return res.json({ message: genericRecoveryMessage }); throw error; }
   try { await deliverCode(channel, target, code, 'signup'); }
   catch (error) { console.error('[auth] resend delivery failed', error); return res.json({ message: genericRecoveryMessage }); }
-  res.json({ message: 'Un nouveau code a été envoyé', ...(isProd ? {} : { devCode: code }) });
+  res.json({ message: genericRecoveryMessage, ...(isProd ? {} : { devCode: code }) });
 }));
 
 authRouter.post('/login', ah(async (req, res) => {
