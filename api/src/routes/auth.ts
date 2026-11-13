@@ -154,8 +154,9 @@ authRouter.post('/refresh', ah(async (req, res) => { res.json(await refreshSessi
 authRouter.post('/logout', ah(async (req, res) => {
   const refresh = req.cookies?.votally_refresh;
   if (typeof refresh === 'string') {
-    await q(`UPDATE user_sessions SET revoked_at = COALESCE(revoked_at, now()), revoke_reason = COALESCE(revoke_reason, 'user_logout')
-      WHERE refresh_token_hash = $1 AND revoked_at IS NULL`, [sha256(refresh)]);
+    const revoked = await q(`UPDATE user_sessions SET revoked_at = COALESCE(revoked_at, now()), revoke_reason = COALESCE(revoke_reason, 'user_logout')
+      WHERE refresh_token_hash = $1 AND revoked_at IS NULL RETURNING user_id`, [sha256(refresh)]);
+    if (revoked.rows[0]?.user_id) recordAuthEvent(revoked.rows[0].user_id, 'user', 'auth.logout', revoked.rows[0].user_id);
   }
   clearSessionCookies(res);
   res.json({ ok: true });
@@ -173,6 +174,7 @@ authRouter.get('/sessions', requireAuth, ah(async (req, res) => {
 authRouter.delete('/sessions/:id', requireAuth, ah(async (req, res) => {
   const id = uuidParam(req, 'id');
   await revokeSessionById(id, req.user!.id);
+  recordAuthEvent(req.user!.id, 'user', 'auth.session_revoked', id);
   if (id === req.user!.sessionId) clearSessionCookies(res);
   res.json({ ok: true });
 }));
