@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ah, HttpError, toCamel, uuidParam } from '../http.js';
 import { q, withTx } from '../db.js';
 import { config, isProd } from '../config.js';
-import { consumeOtp, clearSessionCookies, issueOtp, listSessions, normalizePhone, refreshSession, requireAuth, revokeAllSessions, revokeSession, revokeSessionById, startSession } from '../security.js';
+import { consumeOtp, clearSessionCookies, issueOtp, listSessions, normalizePhone, refreshSession, requireAuth, revokeAllSessions, revokeSessionById, sha256, startSession } from '../security.js';
 import { sms } from '../providers.js';
 
 export const authRouter = Router();
@@ -74,7 +74,6 @@ authRouter.post('/refresh', ah(async (req, res) => { res.json(await refreshSessi
 authRouter.post('/logout', ah(async (req, res) => {
   const refresh = req.cookies?.votally_refresh;
   if (typeof refresh === 'string') {
-    const { sha256 } = await import('../security.js');
     await q(`UPDATE user_sessions SET revoked_at = COALESCE(revoked_at, now()), revoke_reason = COALESCE(revoke_reason, 'user_logout')
       WHERE refresh_token_hash = $1 AND revoked_at IS NULL`, [sha256(refresh)]);
   }
