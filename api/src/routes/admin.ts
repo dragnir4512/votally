@@ -49,7 +49,7 @@ async function changeAccountStatus(userId: string, actorId: string, status: 'act
       // de laisser la plateforme sans aucun administrateur.
       const admins = await c.query(
         `SELECT id FROM users WHERE role = 'admin' AND account_status = 'active' AND deleted_at IS NULL FOR UPDATE`);
-      if (admins.rowCount <= 1) throw new HttpError(409, 'Impossible de désactiver le dernier administrateur actif', 'last_admin');
+      if (admins.rows.length <= 1) throw new HttpError(409, 'Impossible de désactiver le dernier administrateur actif', 'last_admin');
     }
     const updated = await c.query(
       `UPDATE users
