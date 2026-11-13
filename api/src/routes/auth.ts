@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ah, HttpError, toCamel, uuidParam } from '../http.js';
 import { q, withTx } from '../db.js';
 import { config, isProd } from '../config.js';
-import { consumeOtp, clearSessionCookies, issueOtp, listSessions, normalizePhone, refreshSession, requireAuth, revokeAllSessions, revokeSessionById, sha256, startSession } from '../security.js';
+import { consumeOtp, clearSessionCookies, issueOtp, listSessions, normalizePhone, hashTarget, refreshSession, requireAuth, revokeAllSessions, revokeSessionById, sha256, startSession } from '../security.js';
 import { email, sms } from '../providers.js';
 
 export const authRouter = Router();
@@ -27,6 +27,11 @@ async function deliverCode(channel: 'email' | 'sms', target: string, code: strin
   else await sms.send(target, message);
 }
 const genericRecoveryMessage = 'Si un compte vérifié correspond à ces informations, un code vient d’être envoyé.';
+
+function recordAuthEvent(actorId: string | null, actorType: 'user' | 'system', action: string, objectId: string) {
+  q('SELECT audit($1, $2, $3, $4, $5)', [actorId, actorType, action, 'auth_account', objectId])
+    .catch((error) => console.error('[auth-audit]', error?.code ?? 'failed'));
+}
 
 authRouter.post('/register', ah(async (req, res) => {
   const body = identifier.safeExtend({
@@ -62,6 +67,7 @@ authRouter.post('/verify', ah(async (req, res) => {
   const user = r.rows[0];
   if (!user) throw new HttpError(404, 'Compte introuvable', 'not_found');
   await startSession(req, res, user);
+  recordAuthEvent(user.id, 'user', 'auth.account_verified', user.id);
   res.json({ user: publicUser(user) });
 }));
 
@@ -83,16 +89,27 @@ authRouter.post('/resend-code', ah(async (req, res) => {
 
 authRouter.post('/login', ah(async (req, res) => {
   const body = identifier.safeExtend({ password: z.string().min(1) }).parse(req.body);
+  const target = body.email ?? normalizePhone(body.phone!);
   const r = await q(body.email
     ? 'SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL'
-    : 'SELECT * FROM users WHERE phone = $1 AND deleted_at IS NULL',
-    [body.email?.toLowerCase() ?? normalizePhone(body.phone!)]);
+    : 'SELECT * FROM users WHERE phone = $1 AND deleted_at IS NULL', [target]);
   const user = r.rows[0];
   const ok = await bcrypt.compare(body.password, user?.password_hash ?? '$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvali');
-  if (!user || !ok) throw new HttpError(401, 'Identifiants incorrects', 'bad_credentials');
-  if (user.account_status !== 'active') throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
-  if (!user.email_verified_at && !user.phone_verified_at) throw new HttpError(403, 'Compte non vérifié : saisis le code reçu', 'unverified');
+  const targetHash = hashTarget(target).toString('hex');
+  if (!user || !ok) {
+    recordAuthEvent(null, 'system', 'auth.login_failed', targetHash);
+    throw new HttpError(401, 'Identifiants incorrects', 'bad_credentials');
+  }
+  if (user.account_status !== 'active') {
+    recordAuthEvent(null, 'system', 'auth.login_blocked', targetHash);
+    throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
+  }
+  if (!user.email_verified_at && !user.phone_verified_at) {
+    recordAuthEvent(null, 'system', 'auth.login_unverified', targetHash);
+    throw new HttpError(403, 'Compte non vérifié : saisis le code reçu', 'unverified');
+  }
   await startSession(req, res, user);
+  recordAuthEvent(user.id, 'user', 'auth.login_succeeded', user.id);
   res.json({ user: publicUser(user) });
 }));
 
@@ -128,6 +145,7 @@ authRouter.post('/password/reset', ah(async (req, res) => {
       WHERE user_id = $1 AND revoked_at IS NULL`, [user.id]);
   });
   clearSessionCookies(res);
+  recordAuthEvent(user.id, 'user', 'auth.password_reset', user.id);
   res.json({ message: 'Mot de passe modifié. Connectez-vous avec votre nouveau mot de passe.' });
 }));
 
@@ -160,10 +178,12 @@ authRouter.delete('/sessions/:id', requireAuth, ah(async (req, res) => {
 }));
 authRouter.post('/sessions/revoke-others', requireAuth, ah(async (req, res) => {
   await revokeAllSessions(req.user!.id, req.user!.sessionId);
+  recordAuthEvent(req.user!.id, 'user', 'auth.other_sessions_revoked', req.user!.id);
   res.json({ ok: true });
 }));
 authRouter.post('/sessions/revoke-all', requireAuth, ah(async (req, res) => {
   await revokeAllSessions(req.user!.id);
+  recordAuthEvent(req.user!.id, 'user', 'auth.all_sessions_revoked', req.user!.id);
   clearSessionCookies(res);
   res.json({ ok: true });
 }));
