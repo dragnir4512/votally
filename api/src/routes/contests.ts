@@ -421,10 +421,11 @@ contestsRouter.get('/:id/results.csv', ah(async (req, res) => {
 
 contestsRouter.get('/:id/orders', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
-  await needRole(req, id, ['owner', 'manager']);
+  const role = await needRole(req, id, ['owner', 'manager']);
   const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const financialColumns = role === 'owner' ? ', subtotal_xaf, fee_xaf, total_xaf' : '';
   const r = await q(
-    `SELECT reference, kind, status, votes_count, subtotal_xaf, fee_xaf, total_xaf, voter_phone_masked, country_code, created_at, confirmed_at
+    `SELECT reference, kind, status, votes_count${financialColumns}, voter_phone_masked, country_code, created_at, confirmed_at
        FROM vote_orders WHERE contest_id = $1 ORDER BY created_at DESC LIMIT $2`, [id, limit]);
   res.json({ orders: r.rows.map((x) => toCamel(x)) });
 }));
