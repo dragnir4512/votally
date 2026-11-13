@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type RequestHandler } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -17,9 +17,37 @@ import { accountRouter } from './routes/account.js';
 import { adminRouter } from './routes/admin.js';
 import { mediaRouter } from './routes/media.js';
 
-const limiter = (limit: number, windowMs = 60_000) =>
-  rateLimit({ windowMs, limit, standardHeaders: 'draft-7', legacyHeaders: false, skip: () => isTest,
-    message: { error: { code: 'rate_limited', message: 'Trop de requêtes, réessaie dans un instant' } } });
+const limiter = (limit: number, windowMs = 60_000, scope = 'global'): RequestHandler =>
+  async (req, res, next) => {
+    if (isTest) return next();
+    const key = `${scope}:${req.ip ?? req.socket.remoteAddress ?? 'unknown'}`;
+    try {
+      const result = await q(
+        `INSERT INTO api_rate_limits (rate_key, total_hits, reset_at)
+         VALUES ($1, 1, now() + ($2 * interval '1 millisecond'))
+         ON CONFLICT (rate_key) DO UPDATE SET
+           total_hits = CASE WHEN api_rate_limits.reset_at <= now() THEN 1 ELSE api_rate_limits.total_hits + 1 END,
+           reset_at = CASE WHEN api_rate_limits.reset_at <= now() THEN EXCLUDED.reset_at ELSE api_rate_limits.reset_at END,
+           updated_at = now()
+         RETURNING total_hits, reset_at`,
+        [key, windowMs],
+      );
+      const hits = Number(result.rows[0].total_hits);
+      const resetAt = new Date(result.rows[0].reset_at);
+      const retryAfter = Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000));
+      res.setHeader('RateLimit-Policy', `${limit};w=${Math.ceil(windowMs / 1000)}`);
+      res.setHeader('RateLimit-Limit', String(limit));
+      res.setHeader('RateLimit-Remaining', String(Math.max(0, limit - hits)));
+      res.setHeader('RateLimit-Reset', String(retryAfter));
+      if (hits > limit) {
+        res.setHeader('Retry-After', String(retryAfter));
+        return res.status(429).json({ error: { code: 'rate_limited', message: 'Trop de requêtes, réessaie après le délai indiqué' } });
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
 
 export function createApp() {
   const app = express();
@@ -48,25 +76,25 @@ export function createApp() {
 
   // Les limites sont différenciées selon le coût et le risque de chaque opération.
   app.use('/auth', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
-  app.use('/auth/login', limiter(5, 15 * 60_000));
-  app.use('/auth/register', limiter(5, 60 * 60_000));
-  app.use('/auth/verify', limiter(10, 15 * 60_000));
-  app.use('/auth/resend-code', limiter(3, 15 * 60_000));
-  app.use('/auth/password/forgot', limiter(3, 15 * 60_000));
-  app.use('/auth/password/reset', limiter(5, 15 * 60_000));
-  app.use('/auth', limiter(20), authRouter);
-  app.use('/contests/:id/candidates/:cid/image', limiter(30));
-  app.use('/contests/:id/banner', limiter(30));
-  app.use('/contests', limiter(300), contestsRouter);
-  app.use('/media', limiter(600), mediaRouter);
-  app.use('/me/kyc/documents', limiter(20));
-  app.use('/payouts', limiter(20));
-  app.use('/admin', limiter(300), adminRouter);
-  app.use(limiter(300), accountRouter);          // /me/kyc, /me/balance, /payouts
-  app.use('/public/contests/:slug/otp', limiter(5));
-  app.use('/public/contests/:slug/votes', limiter(20));
-  app.use('/public/contests/:slug/orders', limiter(20));
-  app.use('/public', limiter(300), publicRouter);
+  app.use('/auth/login', limiter(5, 15 * 60_000, 'auth-login'));
+  app.use('/auth/register', limiter(5, 60 * 60_000, 'auth-register'));
+  app.use('/auth/verify', limiter(10, 15 * 60_000, 'auth-verify'));
+  app.use('/auth/resend-code', limiter(3, 15 * 60_000, 'auth-resend'));
+  app.use('/auth/password/forgot', limiter(3, 15 * 60_000, 'auth-password-forgot'));
+  app.use('/auth/password/reset', limiter(5, 15 * 60_000, 'auth-password-reset'));
+  app.use('/auth', limiter(20, 60_000, 'auth-global'), authRouter);
+  app.use('/contests/:id/candidates/:cid/image', limiter(30, 60_000, 'contest-media-image'));
+  app.use('/contests/:id/banner', limiter(30, 60_000, 'contest-media-banner'));
+  app.use('/contests', limiter(300, 60_000, 'contests-global'), contestsRouter);
+  app.use('/media', limiter(600, 60_000, 'media-global'), mediaRouter);
+  app.use('/me/kyc/documents', limiter(20, 60_000, 'kyc-documents'));
+  app.use('/payouts', limiter(20, 60_000, 'payouts'));
+  app.use('/admin', limiter(300, 60_000, 'admin-global'), adminRouter);
+  app.use(limiter(300, 60_000, 'account-global'), accountRouter);          // /me/kyc, /me/balance, /payouts
+  app.use('/public/contests/:slug/otp', limiter(5, 60_000, 'public-otp'));
+  app.use('/public/contests/:slug/votes', limiter(20, 60_000, 'public-votes'));
+  app.use('/public/contests/:slug/orders', limiter(20, 60_000, 'public-orders'));
+  app.use('/public', limiter(300, 60_000, 'public-global'), publicRouter);
 
   if (!isProd) {          // Simulateur d'agrégateur pour le développement : jamais exposé en production
     app.post('/dev/mock-pay/:ref', (req, res) => {
