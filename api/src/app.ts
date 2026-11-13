@@ -70,7 +70,7 @@ export function createApp() {
     next();
   });
 
-  app.use('/webhooks', express.raw({ type: '*/*', limit: '200kb' }), webhooksRouter);   // corps brut AVANT express.json
+  app.use('/webhooks', limiter(300, 60_000, 'webhooks'), express.raw({ type: '*/*', limit: '200kb' }), webhooksRouter);   // corps brut AVANT express.json
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', ah(async (_req, res) => { await q('SELECT 1'); res.json({ ok: true }); }));
