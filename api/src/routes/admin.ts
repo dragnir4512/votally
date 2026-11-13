@@ -45,8 +45,11 @@ async function changeAccountStatus(userId: string, actorId: string, status: 'act
     if (!target) throw new HttpError(404, 'Utilisateur introuvable', 'not_found');
     if (target.id === actorId && status !== 'active') throw new HttpError(409, 'Un administrateur ne peut pas suspendre ou désactiver son propre compte', 'self_lockout');
     if (target.role === 'admin' && status !== 'active' && target.account_status === 'active') {
-      const admins = await c.query(`SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND account_status = 'active' AND deleted_at IS NULL`);
-      if (admins.rows[0].n <= 1) throw new HttpError(409, 'Impossible de désactiver le dernier administrateur actif', 'last_admin');
+      // Verrouille les administrateurs actifs pour empêcher deux suspensions simultanées
+      // de laisser la plateforme sans aucun administrateur.
+      const admins = await c.query(
+        `SELECT id FROM users WHERE role = 'admin' AND account_status = 'active' AND deleted_at IS NULL FOR UPDATE`);
+      if (admins.rowCount <= 1) throw new HttpError(409, 'Impossible de désactiver le dernier administrateur actif', 'last_admin');
     }
     const updated = await c.query(
       `UPDATE users
