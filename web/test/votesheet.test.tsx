@@ -34,31 +34,32 @@ const sheet = (c: ContestPublic, sel = cands.slice(0, 1)) =>
   render(<VoteSheet contest={c} packs={packs} selected={sel} lang="fr" tt={makeT('fr')} shareUrl="https://x.votally.com" onClose={() => undefined} />);
 
 describe('VoteSheet — vote gratuit', () => {
-  it('téléphone -> code SMS -> vote enregistré', async () => {
+  it('envoie directement le vote avec le numéro, sans SMS ni OTP', async () => {
     routes = {
-      '/otp': () => ({ json: { devCode: '123456' } }),
       '/votes/free': () => ({ status: 201, json: { reference: 'VT-FREE', votes: 1, status: 'confirmed' } }),
     };
     sheet(contest({ voteType: 'free', votePriceXaf: 0 }));
-    const send = screen.getByRole('button', { name: /Recevoir mon code/ });
-    expect((send as HTMLButtonElement).disabled).toBe(true);                         // numéro vide
+    const confirm = screen.getByRole('button', { name: 'Confirmer mon vote' });
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '12' } });
-    expect(screen.getByText(/Numéro invalide/)).toBeTruthy();                        // numéro trop court
+    expect(screen.getByText(/Numéro invalide/)).toBeTruthy();
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
-    fireEvent.click(send);
-    await screen.findByText(/Mode test : code 123456/);
-    fireEvent.change(screen.getByPlaceholderText('••••••'), { target: { value: '123456' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmer mon vote' }));
+    expect((confirm as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(confirm);
     await screen.findByText(/Merci, ton vote est enregistré/);
-    expect(calls.at(-1)!.body).toMatchObject({ phone: '690000000', code: '123456', choices: [{ candidateId: 'a', quantity: 1 }] });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toContain('/votes/free');
+    expect(calls[0]!.body).toMatchObject({ phone: '690000000', choices: [{ candidateId: 'a', quantity: 1 }], locale: 'fr' });
+    expect(calls[0]!.body.code).toBeUndefined();
   });
 
-  it('affiche l\'erreur traduite quand le code est refusé par l\'API', async () => {
-    routes = { '/otp': () => ({ status: 429, json: { error: { code: 'otp_throttled', message: 'Patiente 60 secondes' } } }) };
+  it('affiche une erreur traduite si le vote gratuit est refusé par l\'API', async () => {
+    routes = { '/votes/free': () => ({ status: 429, json: { error: { code: 'rate_limited', message: 'Trop de requêtes' } } }) };
     sheet(contest({ voteType: 'free' }));
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
-    fireEvent.click(screen.getByRole('button', { name: /Recevoir mon code/ }));
-    await screen.findByText('Patiente une minute avant de redemander un code.');
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer mon vote' }));
+    await screen.findByText(/Trop de requêtes/);
   });
 
   it('limite les choix selon maxChoicesPerVote, indépendamment du quota gratuit par période', () => {
@@ -66,7 +67,7 @@ describe('VoteSheet — vote gratuit', () => {
     sheet(contest({ voteType: 'free', freeVotesPerPeriod: 5, maxChoicesPerVote: 1 }), cands);
     expect(screen.getByText(/tu peux voter pour 1 candidat\(s\) à la fois/)).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
-    expect((screen.getByRole('button', { name: /Recevoir mon code/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: 'Confirmer mon vote' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('autorise plusieurs choix si maxChoicesPerVote le permet même avec un quota périodique de un', () => {
@@ -74,7 +75,7 @@ describe('VoteSheet — vote gratuit', () => {
     sheet(contest({ voteType: 'free', votePriceXaf: 0, freeVotesPerPeriod: 1, maxChoicesPerVote: 2 }), cands);
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
     expect(screen.queryByText(/tu peux voter pour/)).toBeNull();
-    expect((screen.getByRole('button', { name: /Recevoir mon code/ }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Confirmer mon vote' }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
 
