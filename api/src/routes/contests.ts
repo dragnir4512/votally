@@ -154,10 +154,20 @@ contestsRouter.get('/:id', ah(async (req, res) => {
   res.json({ contest: publicContest(c), myRole: role });
 }));
 
+// Le gestionnaire pilote le contenu et les opérations ; les paramètres structurants du vote restent au propriétaire.
+const OWNER_ONLY_PATCH_FIELDS = new Set([
+  'slug', 'voteType', 'votePriceXaf', 'maxChoicesPerVote',
+  'freeVotesPerPeriod', 'freeVotePeriodHours', 'startsAt', 'endsAt',
+  'visibility', 'accessPassword', 'resultsDisplay',
+]);
+
 contestsRouter.patch('/:id', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
-  await needRole(req, id, ['owner', 'manager']);
+  const role = await needRole(req, id, ['owner', 'manager']);
   const b = contestPatch.parse(req.body) as Record<string, any>;
+  if (role !== 'owner' && Object.keys(b).some((field) => OWNER_ONLY_PATCH_FIELDS.has(field))) {
+    throw new HttpError(403, 'Seul le propriétaire peut modifier les paramètres structurants du vote', 'owner_permission_required');
+  }
   const current = (await q('SELECT visibility, access_password_hash, starts_at, ends_at, vote_type, vote_price_xaf FROM contests WHERE id = $1', [id])).rows[0];
   if (!current) throw new HttpError(404, 'Concours introuvable', 'not_found');
   // Valide l'état final, pas seulement les champs présents dans le PATCH.
