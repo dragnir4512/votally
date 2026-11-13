@@ -34,6 +34,9 @@ const schema = z.object({
     if (data.PHONE_HASH_PEPPER.length < 32) {
       ctx.addIssue({ code: 'custom', path: ['PHONE_HASH_PEPPER'], message: '32 caractères minimum en production' });
     }
+    if (data.BCRYPT_COST < 12) {
+      ctx.addIssue({ code: 'custom', path: ['BCRYPT_COST'], message: 'BCRYPT_COST doit être au moins égal à 12 en production' });
+    }
     const origins = data.CORS_ORIGINS.split(',').map((s) => s.trim());
     const invalidOrigin = origins.length === 0 || origins.some((origin) => {
       try {
