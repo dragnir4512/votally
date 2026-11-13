@@ -29,11 +29,31 @@ export function createApp() {
   app.use(cors({ origin: config.CORS_ORIGINS.split(',').map((s) => s.trim()), credentials: true }));
   app.use(cookieParser());
 
+  // Défense CSRF complémentaire : les navigateurs envoient Origin sur les mutations.
+  // Les clients serveur-à-serveur sans Origin (webhooks, applications natives) restent acceptés.
+  const allowedOrigins = new Set(config.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean));
+  app.use((req, _res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+    const origin = req.get('origin');
+    if (origin && !allowedOrigins.has(origin)) {
+      return next(new HttpError(403, 'Origine non autorisée', 'origin_not_allowed'));
+    }
+    next();
+  });
+
   app.use('/webhooks', express.raw({ type: '*/*', limit: '200kb' }), webhooksRouter);   // corps brut AVANT express.json
   app.use(express.json({ limit: '100kb' }));
 
   app.get('/health', ah(async (_req, res) => { await q('SELECT 1'); res.json({ ok: true }); }));
 
+  // Les limites sont différenciées selon le coût et le risque de chaque opération.
+  app.use('/auth', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+  app.use('/auth/login', limiter(5, 15 * 60_000));
+  app.use('/auth/register', limiter(5, 60 * 60_000));
+  app.use('/auth/verify', limiter(10, 15 * 60_000));
+  app.use('/auth/resend-code', limiter(3, 15 * 60_000));
+  app.use('/auth/password/forgot', limiter(3, 15 * 60_000));
+  app.use('/auth/password/reset', limiter(5, 15 * 60_000));
   app.use('/auth', limiter(20), authRouter);
   app.use('/contests/:id/candidates/:cid/image', limiter(30));
   app.use('/contests/:id/banner', limiter(30));
