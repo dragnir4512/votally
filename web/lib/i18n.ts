@@ -6,7 +6,7 @@ const fr = {
   statusClosed: 'Concours terminé', statusPaused: 'Vote en pause', statusSoon: 'Le vote commence le {date}', statusEnds: 'Fin du vote : {date}', statusEnded: 'Le vote est terminé',
   free: 'Gratuit', paid: 'Payant', freeVoteInfo: '{n} vote(s) gratuit(s) par numéro toutes les {h} h', freeLimit: 'Gratuitement, tu peux voter pour {n} candidat(s) à la fois.',
   pricePerVote: '{price} par vote', phone: 'Numéro de téléphone', phoneHelp: 'Ex. 690 00 00 00', invalidPhone: 'Numéro invalide (9 chiffres, ex. 690000000)',
-  sendCode: 'Recevoir mon code par SMS', code: 'Code reçu par SMS', codeSent: 'Un code a été envoyé au {phone}', confirmVote: 'Confirmer mon vote', devCode: 'Mode test : code {code}',
+  confirmVote: 'Confirmer mon vote',
   yourVotes: 'Nombre de votes', packs: 'Packs', subtotal: 'Votes', fees: 'Frais de transaction', total: 'Total à payer', votesWord: 'votes',
   payWith: 'Payer avec', momo: 'MTN MoMo', orange: 'Orange Money', card: 'Carte bancaire', cardUnavailable: 'Activation de la carte bancaire non disponible pour le moment.', orderSummary: 'Récapitulatif du paiement', pay: 'Payer {amount}', computing: 'Calcul du total…',
   pendingTitle: 'Valide le paiement sur ton téléphone', pendingBody: 'Une demande de paiement de {amount} a été envoyée. Compose ton code secret pour confirmer. Cette page se met à jour toute seule.',
@@ -19,7 +19,6 @@ const fr = {
   notFoundTitle: 'Concours introuvable', notFoundBody: 'Vérifie l\'adresse ou demande le lien à l\'organisateur.',
   loading: 'Chargement…', genericError: 'Une erreur est survenue. Réessaie dans un instant.', votes: 'vote(s)',
   errors: {
-    invalid_code: 'Code incorrect ou expiré.', otp_throttled: 'Patiente une minute avant de redemander un code.',
     too_many_choices: 'Trop de candidats pour ce concours.', free_votes_closed: 'Les votes gratuits sont fermés.',
     paid_votes_closed: 'Les votes payants sont fermés.', phone_required: 'Le numéro Mobile Money est obligatoire.',
     invalid_phone: 'Numéro de téléphone invalide.', rate_limited: 'Trop de tentatives. Réessaie dans un instant.',
@@ -34,7 +33,7 @@ const en: typeof fr = {
   statusClosed: 'Contest ended', statusPaused: 'Voting paused', statusSoon: 'Voting starts on {date}', statusEnds: 'Voting ends: {date}', statusEnded: 'Voting is over',
   free: 'Free', paid: 'Paid', freeVoteInfo: '{n} free vote(s) per phone number every {h} h', freeLimit: 'For free, you can vote for {n} candidate(s) at a time.',
   pricePerVote: '{price} per vote', phone: 'Phone number', phoneHelp: 'e.g. 690 00 00 00', invalidPhone: 'Invalid number (9 digits, e.g. 690000000)',
-  sendCode: 'Get my code by SMS', code: 'Code received by SMS', codeSent: 'A code was sent to {phone}', confirmVote: 'Confirm my vote', devCode: 'Test mode: code {code}',
+  confirmVote: 'Confirm my vote',
   yourVotes: 'Number of votes', packs: 'Packs', subtotal: 'Votes', fees: 'Transaction fees', total: 'Total to pay', votesWord: 'votes',
   payWith: 'Pay with', momo: 'MTN MoMo', orange: 'Orange Money', card: 'Bank card', cardUnavailable: 'Card payments are not available yet.', orderSummary: 'Payment summary', pay: 'Pay {amount}', computing: 'Calculating total…',
   pendingTitle: 'Approve the payment on your phone', pendingBody: 'A payment request of {amount} was sent. Enter your secret code to confirm. This page updates by itself.',
@@ -47,7 +46,6 @@ const en: typeof fr = {
   notFoundTitle: 'Contest not found', notFoundBody: 'Check the address or ask the organizer for the link.',
   loading: 'Loading…', genericError: 'Something went wrong. Please try again shortly.', votes: 'vote(s)',
   errors: {
-    invalid_code: 'Wrong or expired code.', otp_throttled: 'Please wait a minute before requesting a new code.',
     too_many_choices: 'Too many candidates for this contest.', free_votes_closed: 'Free voting is closed.',
     paid_votes_closed: 'Paid voting is closed.', phone_required: 'A Mobile Money number is required.',
     invalid_phone: 'Invalid phone number.', rate_limited: 'Too many attempts. Please try again shortly.',
