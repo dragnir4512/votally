@@ -23,7 +23,7 @@ Ce bloc ajoute des contrôles de défense en profondeur à l'API. Les contrôles
 - Réponses d'authentification marquées `Cache-Control: no-store`.
 - Limites de taille du JSON et des corps de webhooks.
 - Limitation de débit différenciée pour connexion, inscription, vérification OTP, renvoi OTP, récupération/réinitialisation de mot de passe, fichiers, paiements et routes publiques.
-- Compteurs de débit persistés dans PostgreSQL : ils sont partagés entre plusieurs instances API et ne dépendent pas de la mémoire d'un seul processus.
+- Compteurs de débit persistés dans PostgreSQL : ils sont partagés entre plusieurs instances API et ne dépendent pas de la mémoire d'un seul processus. Les adresses IP sont pseudonymisées par HMAC avant stockage.
 - Nettoyage périodique des compteurs expirés.
 - Les journaux d'erreur n'enregistrent plus les paramètres de requête ni l'objet d'erreur complet, et les réponses ne divulguent plus les noms de contraintes SQL.
 
