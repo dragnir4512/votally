@@ -17,22 +17,21 @@ import { adminRouter } from './routes/admin.js';
 import { mediaRouter } from './routes/media.js';
 
 const limiter = (limit: number, windowMs = 60_000, scope = 'global'): RequestHandler =>
-  async (req, res, next) => {
-    if (isTest) return next();
+  (req, res, next) => {
+    if (isTest) { next(); return; }
     const sourceIp = req.ip ?? req.socket.remoteAddress ?? 'unknown';
     const ipKey = createHmac('sha256', config.PHONE_HASH_PEPPER).update(sourceIp).digest('hex');
     const key = `${scope}:${ipKey}`;
-    try {
-      const result = await q(
-        `INSERT INTO api_rate_limits (rate_key, total_hits, reset_at)
-         VALUES ($1, 1, now() + ($2 * interval '1 millisecond'))
-         ON CONFLICT (rate_key) DO UPDATE SET
-           total_hits = CASE WHEN api_rate_limits.reset_at <= now() THEN 1 ELSE api_rate_limits.total_hits + 1 END,
-           reset_at = CASE WHEN api_rate_limits.reset_at <= now() THEN EXCLUDED.reset_at ELSE api_rate_limits.reset_at END,
-           updated_at = now()
-         RETURNING total_hits, reset_at`,
-        [key, windowMs],
-      );
+    q(
+      `INSERT INTO api_rate_limits (rate_key, total_hits, reset_at)
+       VALUES ($1, 1, now() + ($2 * interval '1 millisecond'))
+       ON CONFLICT (rate_key) DO UPDATE SET
+         total_hits = CASE WHEN api_rate_limits.reset_at <= now() THEN 1 ELSE api_rate_limits.total_hits + 1 END,
+         reset_at = CASE WHEN api_rate_limits.reset_at <= now() THEN EXCLUDED.reset_at ELSE api_rate_limits.reset_at END,
+         updated_at = now()
+       RETURNING total_hits, reset_at`,
+      [key, windowMs],
+    ).then((result) => {
       const hits = Number(result.rows[0].total_hits);
       const resetAt = new Date(result.rows[0].reset_at);
       const retryAfter = Math.max(1, Math.ceil((resetAt.getTime() - Date.now()) / 1000));
@@ -42,12 +41,11 @@ const limiter = (limit: number, windowMs = 60_000, scope = 'global'): RequestHan
       res.setHeader('RateLimit-Reset', String(retryAfter));
       if (hits > limit) {
         res.setHeader('Retry-After', String(retryAfter));
-        return res.status(429).json({ error: { code: 'rate_limited', message: 'Trop de requêtes, réessaie après le délai indiqué' } });
+        res.status(429).json({ error: { code: 'rate_limited', message: 'Trop de requêtes, réessaie après le délai indiqué' } });
+        return;
       }
       next();
-    } catch (error) {
-      next(error);
-    }
+    }).catch(next);
   };
 
 export function createApp() {
