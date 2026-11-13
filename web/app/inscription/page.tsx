@@ -31,8 +31,8 @@ export default function Inscription() {
           <label className="field"><span>Nom complet</span><input className="input" required minLength={2} autoComplete="name" value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></label>
           <label className="field"><span>{by === 'email' ? 'Email' : 'Téléphone (Mobile Money de préférence)'}</span>
             <input className="input" required type={by === 'email' ? 'email' : 'tel'} autoComplete={by === 'email' ? 'email' : 'tel'} value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} placeholder={by === 'email' ? 'vous@exemple.com' : '690000000'} /></label>
-          <label className="field"><span>Mot de passe</span><input className="input" required type="password" minLength={8} autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
-            <small className="muted">8 caractères minimum, avec une majuscule et un chiffre.</small></label>
+          <label className="field"><span>Mot de passe</span><input className="input" required type="password" minLength={10} autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+            <small className="muted">10 caractères minimum, avec une minuscule, une majuscule et un chiffre.</small></label>
           <label className="check-line"><input type="checkbox" checked={f.accept} onChange={(e) => setF({ ...f, accept: e.target.checked })} /> J&apos;accepte les conditions d&apos;utilisation et la politique de confidentialité.</label>
           {error && <p className="error" role="alert">{error}</p>}
           <button className="btn btn-primary block" type="submit" disabled={busy || !f.accept}>Recevoir mon code</button>
