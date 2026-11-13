@@ -3,10 +3,9 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { ah, HttpError, toCamel } from '../http.js';
 import { q, withTx, type Db } from '../db.js';
-import { consumeOtp, hashTarget, issueOtp, maskPhone, normalizePhone } from '../security.js';
-import { defaultPaymentProvider, getPaymentProvider, sms, type PaymentMethod } from '../providers.js';
+import { hashTarget, maskPhone, normalizePhone } from '../security.js';
+import { defaultPaymentProvider, getPaymentProvider, type PaymentMethod } from '../providers.js';
 import { reconcileProviderPayment } from './webhooks.js';
-import { isProd } from '../config.js';
 
 export const publicRouter = Router();
 
@@ -66,28 +65,18 @@ async function assertCandidates(c: Db, contestId: string, choices: { candidateId
   if (ok.rows[0].n !== ids.length) throw new HttpError(400, 'Candidat invalide pour ce concours', 'invalid_candidate');
 }
 
-// ---------- Vote gratuit : code SMS puis vote ----------
-publicRouter.post('/contests/:slug/otp', ah(async (req, res) => {
-  const body = z.object({ phone: z.string() }).parse(req.body);
+// ---------- Vote gratuit : numéro requis, sans SMS ni code de vérification ----------
+publicRouter.post('/contests/:slug/votes/free', ah(async (req, res) => {
+  const body = z.object({ phone: z.string(), choices: choicesSchema, locale: z.enum(['fr', 'en']).optional() }).parse(req.body);
   const phone = normalizePhone(body.phone);
   const c = await loadPublicContest(req, req.params.slug as string);
   if (c.status !== 'active' || !['free', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes gratuits actuellement', 'free_votes_closed');
-  const code = await withTx(null, (cx) => issueOtp(cx, 'free_vote', 'sms', phone, req.ip));
-  await sms.send(phone, `VOTALLY : votre code de vote est ${code} (valable 10 min)`);
-  res.json({ message: 'Code envoyé par SMS', ...(isProd ? {} : { devCode: code }) });
-}));
-
-publicRouter.post('/contests/:slug/votes/free', ah(async (req, res) => {
-  const body = z.object({ phone: z.string(), code: z.string().regex(/^\d{6}$/), choices: choicesSchema, locale: z.enum(['fr', 'en']).optional() }).parse(req.body);
-  const phone = normalizePhone(body.phone);
-  const c = await loadPublicContest(req, req.params.slug as string);
-  if (!(await consumeOtp('free_vote', phone, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
 
   assertChoiceCount(c, body.choices);
   const votes = body.choices.reduce((s, x) => s + x.quantity, 0);
   const out = await withTx(null, async (cx) => {
     await assertCandidates(cx, c.id, body.choices);
-    // Le quota par numéro et par période, l'état du concours et la cohérence sont contrôlés par la base (triggers)
+    // Le quota par numéro et par période reste contrôlé par la base (trigger).
     const o = (await cx.query(
       `INSERT INTO vote_orders (contest_id, kind, status, votes_count, voter_phone_hash, voter_phone_masked, ip, user_agent, locale, expires_at)
        VALUES ($1,'free','pending',$2,$3,$4,$5,$6,$7, now() + interval '15 minutes') RETURNING id, reference`,
@@ -100,7 +89,6 @@ publicRouter.post('/contests/:slug/votes/free', ah(async (req, res) => {
   });
   res.status(201).json({ reference: out.reference, votes, status: 'confirmed' });
 }));
-
 
 /** Calcul du prix côté serveur (jamais fourni par le client). Partagé par le devis et la création de commande. */
 async function priceFor(c: any, body: { packId?: string; choices: { quantity: number }[] }) {
