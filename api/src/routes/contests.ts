@@ -360,6 +360,18 @@ contestsRouter.get('/:id/members', ah(async (req, res) => {
   res.json({ members: r.rows.map((x) => toCamel(x)) });
 }));
 
+contestsRouter.patch('/:id/members/:mid', ah(async (req, res) => {
+  const id = uuidParam(req, 'id'); const mid = uuidParam(req, 'mid');
+  await needRole(req, id, ['owner']);
+  const { role } = z.object({ role: z.enum(['manager', 'viewer']) }).parse(req.body);
+  const r = await q(`UPDATE contest_members
+    SET role = $3
+    WHERE id = $2 AND contest_id = $1 AND role <> 'owner' AND status IN ('active', 'invited')
+    RETURNING id, role, status`, [id, mid, role]);
+  if (!r.rows[0]) throw new HttpError(404, 'Membre ou invitation introuvable', 'member_not_found');
+  res.json({ member: toCamel(r.rows[0]) });
+}));
+
 contestsRouter.delete('/:id/members/:mid', ah(async (req, res) => {
   const id = uuidParam(req, 'id'); const mid = uuidParam(req, 'mid');
   await needRole(req, id, ['owner']);
