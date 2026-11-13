@@ -113,7 +113,7 @@ authRouter.post('/password/forgot', ah(async (req, res) => {
 }));
 
 authRouter.post('/password/reset', ah(async (req, res) => {
-  const body = identifier.safeExtend({ code: z.string().regex(/^\\d{6}$/), newPassword: password }).parse(req.body);
+  const body = identifier.safeExtend({ code: z.string().regex(/^\d{6}$/), newPassword: password }).parse(req.body);
   const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
   const target = emailAddress ?? phone!;
   const user = (await q(emailAddress
