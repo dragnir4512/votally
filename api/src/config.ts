@@ -3,6 +3,7 @@ import { z } from 'zod';
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
   DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(5000),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300000).default(30000),
@@ -26,6 +27,21 @@ const schema = z.object({
   // Dossier des fichiers téléversés (développement / serveur unique). En production : stockage objet S3 (voir storage.ts).
   UPLOAD_DIR: z.string().default('./uploads'),
 }).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    if (data.JWT_SECRET.length < 32) {
+      ctx.addIssue({ code: 'custom', path: ['JWT_SECRET'], message: '32 caractères minimum en production' });
+    }
+    if (data.PHONE_HASH_PEPPER.length < 32) {
+      ctx.addIssue({ code: 'custom', path: ['PHONE_HASH_PEPPER'], message: '32 caractères minimum en production' });
+    }
+    const origins = data.CORS_ORIGINS.split(',').map((s) => s.trim().toLowerCase());
+    if (!origins.length || origins.some((origin) => !origin.startsWith('https://') || origin === 'https://*')) {
+      ctx.addIssue({ code: 'custom', path: ['CORS_ORIGINS'], message: 'En production, seules des origines HTTPS explicites sont autorisées' });
+    }
+    if (!data.RESEND_API_KEY || !data.EMAIL_FROM) {
+      ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY et EMAIL_FROM sont obligatoires en production pour la récupération de compte par email' });
+    }
+  }
   if (!!data.RESEND_API_KEY !== !!data.EMAIL_FROM) {
     ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'RESEND_API_KEY et EMAIL_FROM doivent être configurés ensemble' });
   }
