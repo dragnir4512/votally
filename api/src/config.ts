@@ -21,9 +21,14 @@ const schema = z.object({
   NOTCHPAY_HASH_KEY: z.string().min(1).optional(),
   NOTCHPAY_CALLBACK_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3001'),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().min(3).optional(),
   // Dossier des fichiers téléversés (développement / serveur unique). En production : stockage objet S3 (voir storage.ts).
   UPLOAD_DIR: z.string().default('./uploads'),
 }).superRefine((data, ctx) => {
+  if (!!data.RESEND_API_KEY !== !!data.EMAIL_FROM) {
+    ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'RESEND_API_KEY et EMAIL_FROM doivent être configurés ensemble' });
+  }
   if (data.PAYMENT_PROVIDER === 'notchpay') {
     const requiredKeys = [
       'NOTCHPAY_PUBLIC_KEY',
