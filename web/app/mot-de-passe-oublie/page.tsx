@@ -46,7 +46,7 @@ export default function MotDePasseOublie() {
       <span className="auth-eyebrow">NOUVEAU MOT DE PASSE</span><h1>Réinitialisez votre accès.</h1>
       <p className="auth-intro">{message}</p>
       {devCode && <p className="devhint">Mode développement : code {devCode}</p>}
-      <label className="field"><span>Code à 6 chiffres</span><input className="input code" required inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\\D/g, ''))} /></label>
+      <label className="field"><span>Code à 6 chiffres</span><input className="input code" required inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} /></label>
       <label className="field"><span>Nouveau mot de passe</span><input className="input" required type="password" minLength={10} autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} /><small className="muted">10 caractères minimum, avec une minuscule, une majuscule et un chiffre.</small></label>
       {error && <p className="error" role="alert">{error}</p>}
       <button className="btn btn-primary block" type="submit" disabled={busy || code.length !== 6 || newPassword.length < 10}>{busy ? 'Modification…' : 'Modifier le mot de passe'}</button>
