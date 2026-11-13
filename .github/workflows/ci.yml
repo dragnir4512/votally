@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/votally-figma-redesign
+      - agent/votally-work
   pull_request:
     branches:
       - main
@@ -48,7 +49,9 @@ jobs:
             api/package-lock.json
             web/package-lock.json
       - name: Install root migration dependency
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+      - name: Provide empty local env file for the API test command
+        run: touch .env
       - name: Install API dependencies
         run: npm ci --prefix api --no-audit --no-fund
       - name: Apply database migrations
