@@ -52,6 +52,31 @@ describe('Authentification', () => {
     expect((await request(app).get('/auth/me')).status).toBe(401);
   });
 
+
+  it('expose un profil modifiable sans permettre de changer les coordonnées vérifiées ou le rôle', async () => {
+    const { agent, email } = await signup();
+    const initial = await agent.get('/me/profile');
+    expect(initial.status).toBe(200);
+    expect(initial.body.profile).toMatchObject({ email, role: 'creator', accountStatus: 'active' });
+    const updated = await agent.patch('/me/profile').send({ fullName: 'Nouveau Nom', locale: 'en' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.profile).toMatchObject({ fullName: 'Nouveau Nom', locale: 'en', email, role: 'creator' });
+    expect((await agent.patch('/me/profile').send({ role: 'admin' })).status).toBe(400);
+    expect((await agent.patch('/me/profile').send({ email: 'pirate@example.cm' })).status).toBe(400);
+  });
+
+  it('bloque immédiatement les comptes suspendus ou désactivés', async () => {
+    const { agent, userId, email } = await signup();
+    await q(`UPDATE users SET account_status = 'suspended', account_status_reason = 'Test de suspension' WHERE id = $1`, [userId]);
+    expect((await agent.get('/auth/me')).status).toBe(403);
+    expect((await agent.get('/me/profile')).body.error.code).toBe('account_unavailable');
+    expect((await request(app).post('/auth/login').send({ email, password: PASSWORD })).status).toBe(403);
+    await q(`UPDATE users SET account_status = 'disabled' WHERE id = $1`, [userId]);
+    expect((await agent.get('/auth/me')).status).toBe(403);
+    await q(`UPDATE users SET account_status = 'active', account_status_reason = NULL WHERE id = $1`, [userId]);
+    expect((await agent.get('/auth/me')).status).toBe(200);
+  });
+
   it('inscription par téléphone camerounais local (9 chiffres)', async () => {
     const phone = '6' + String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
     const r = await request(app).post('/auth/register').send({ phone, password: PASSWORD, fullName: 'Tel Test', acceptTerms: true });

@@ -16,7 +16,8 @@ const identifier = z.object({ email: z.string().email().optional(), phone: z.str
 
 const publicUser = (u: any) => toCamel({
   id: u.id, email: u.email, phone: u.phone, full_name: u.full_name, role: u.role, locale: u.locale,
-  kyc_status: u.kyc_status, email_verified_at: u.email_verified_at, phone_verified_at: u.phone_verified_at });
+  kyc_status: u.kyc_status, account_status: u.account_status, account_status_reason: u.account_status_reason,
+  email_verified_at: u.email_verified_at, phone_verified_at: u.phone_verified_at });
 
 // REQ-AUTH-001/003/005 : inscription, validation obligatoire, consentement horodaté
 authRouter.post('/register', ah(async (req, res) => {
@@ -46,10 +47,16 @@ authRouter.post('/verify', ah(async (req, res) => {
   const body = identifier.safeExtend({ code: z.string().regex(/^\d{6}$/) }).parse(req.body);
   const email = body.email?.toLowerCase();
   const phone = body.phone ? normalizePhone(body.phone) : undefined;
+  const existing = (await q(
+    email ? 'SELECT id, account_status FROM users WHERE email = $1 AND deleted_at IS NULL'
+          : 'SELECT id, account_status FROM users WHERE phone = $1 AND deleted_at IS NULL',
+    [email ?? phone])).rows[0];
+  if (!existing) throw new HttpError(404, 'Compte introuvable', 'not_found');
+  if (existing.account_status !== 'active') throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
   if (!(await consumeOtp('signup', (email ?? phone)!, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   const r = await q(
-    email ? `UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE email = $1 RETURNING *`
-          : `UPDATE users SET phone_verified_at = COALESCE(phone_verified_at, now()) WHERE phone = $1 RETURNING *`,
+    email ? `UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE email = $1 AND deleted_at IS NULL RETURNING *`
+          : `UPDATE users SET phone_verified_at = COALESCE(phone_verified_at, now()) WHERE phone = $1 AND deleted_at IS NULL RETURNING *`,
     [email ?? phone]);
   const user = r.rows[0];
   if (!user) throw new HttpError(404, 'Compte introuvable', 'not_found');
@@ -65,6 +72,7 @@ authRouter.post('/login', ah(async (req, res) => {
   // Même message et même coût de calcul que le compte existe ou non (pas d'énumération)
   const ok = await bcrypt.compare(body.password, user?.password_hash ?? '$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvali');
   if (!user || !ok) throw new HttpError(401, 'Identifiants incorrects', 'bad_credentials');
+  if (user.account_status !== 'active') throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
   if (!user.email_verified_at && !user.phone_verified_at) throw new HttpError(403, 'Compte non vérifié : saisis le code reçu', 'unverified');
   startSession(res, user);
   res.json({ user: publicUser(user) });

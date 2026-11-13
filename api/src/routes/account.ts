@@ -12,6 +12,31 @@ import { bodyBuffer, checkQuota, rawFile, storeFile } from './media.js';
 export const accountRouter = Router();
 accountRouter.use(['/me', '/payouts'], requireAuth);
 
+// ---------- Profil du compte ----------
+accountRouter.get('/me/profile', ah(async (req, res) => {
+  const r = (await q(
+    'SELECT id, email, phone, full_name, locale, role, account_status, email_verified_at, phone_verified_at, created_at FROM users WHERE id = $1 AND deleted_at IS NULL',
+    [req.user!.id])).rows[0];
+  if (!r) throw new HttpError(401, 'Session invalide', 'unauthenticated');
+  res.json({ profile: toCamel(r) });
+}));
+
+accountRouter.patch('/me/profile', ah(async (req, res) => {
+  const body = z.object({
+    fullName: z.string().trim().min(2).max(120).optional(),
+    locale: z.enum(['fr', 'en']).optional(),
+  }).strict().refine((v) => Object.keys(v).length > 0, 'Au moins un champ doit être fourni').parse(req.body);
+  const r = (await q(
+    `UPDATE users
+        SET full_name = COALESCE($2, full_name),
+            locale = COALESCE($3, locale)
+      WHERE id = $1 AND deleted_at IS NULL AND account_status = 'active'
+      RETURNING id, email, phone, full_name, locale, role, account_status, email_verified_at, phone_verified_at, created_at`,
+    [req.user!.id, body.fullName ?? null, body.locale ?? null])).rows[0];
+  if (!r) throw new HttpError(401, 'Session invalide', 'unauthenticated');
+  res.json({ profile: toCamel(r) });
+}));
+
 const kycPublic = (r: any) => r && toCamel({
   id: r.id, type: r.type, legal_name: r.legal_name, id_document_type: r.id_document_type, niu: r.niu, payout_method: r.payout_method,
   payout_phone_masked: r.payout_phone.slice(0, 4) + '** *** *' + r.payout_phone.slice(-2), payout_account_name: r.payout_account_name,

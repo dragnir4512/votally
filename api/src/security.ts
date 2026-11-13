@@ -88,11 +88,24 @@ function readToken(req: Request): string | undefined {
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const token = readToken(req);
   if (!token) return next(new HttpError(401, 'Connexion requise', 'unauthenticated'));
+  let payload: jwt.JwtPayload;
   try {
-    const p = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
-    req.user = { id: String(p.sub), role: p.role === 'admin' ? 'admin' : 'creator' };
-    next();
-  } catch { next(new HttpError(401, 'Session expirée', 'unauthenticated')); }
+    payload = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
+  } catch {
+    return next(new HttpError(401, 'Session expirée', 'unauthenticated'));
+  }
+  const userId = String(payload.sub ?? '');
+  if (!userId) return next(new HttpError(401, 'Session invalide', 'unauthenticated'));
+  // Le rôle et l'état du compte viennent de la base, jamais des seules claims du JWT.
+  q('SELECT role, account_status FROM users WHERE id = $1 AND deleted_at IS NULL', [userId])
+    .then((r) => {
+      const user = r.rows[0];
+      if (!user) return next(new HttpError(401, 'Session invalide', 'unauthenticated'));
+      if (user.account_status !== 'active') return next(new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable'));
+      req.user = { id: userId, role: user.role === 'admin' ? 'admin' : 'creator' };
+      next();
+    })
+    .catch(next);
 }
 /** Le rôle est relu en base à chaque requête : retirer le rôle administrateur est immédiat (pas d'attente de l'expiration du jeton). */
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
