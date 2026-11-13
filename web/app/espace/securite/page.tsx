@@ -47,7 +47,7 @@ export default function SecuriteCompte() {
     <p className="account-breadcrumb"><Link href="/espace/compte">← Retour à mon compte</Link></p>
     <header className="account-heading"><div><p className="account-eyebrow">ESPACE ORGANISATEUR / SÉCURITÉ</p><h1>Appareils connectés</h1><p>Consulte les sessions ouvertes sur ton compte et déconnecte les appareils que tu ne reconnais pas.</p></div></header>
     <section className="account-section">
-      <div className="account-section-heading"><div><span className="account-section-kicker">SESSIONS ACTIVES</span><h2>Connexions à ton compte</h2><p>Une session inactive expire automatiquement après 30 jours. Les accès sont renouvelés automatiquement pendant l’utilisation.</p></div>
+      <div className="account-section-heading"><div><span className="account-section-kicker">SESSIONS ACTIVES</span><h2>Connexions à ton compte</h2><p>Chaque session expire au plus tard 30 jours après sa création. Les accès sont renouvelés automatiquement pendant l’utilisation.</p></div>
         <div><button className="btn btn-secondary" type="button" disabled={!!busy || sessions.length < 2} onClick={revokeOthers}>{busy === 'others' ? 'Déconnexion…' : 'Déconnecter les autres'}</button></div>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
