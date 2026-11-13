@@ -27,4 +27,18 @@ describe('Durcissement sécurité HTTP et authentification', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('validation');
   });
+
+  it('refuse un mot de passe trop court même s’il contient majuscule et chiffre', async () => {
+    const response = await request(app).post('/auth/register')
+      .send({ email: 'short-password@example.com', password: 'Abcdefg1', fullName: 'Test User', acceptTerms: true });
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('validation');
+  });
+
+  it('valide aussi strictement le format OTP lors de la réinitialisation', async () => {
+    const response = await request(app).post('/auth/password/reset')
+      .send({ email: 'test@example.com', code: '12345x', newPassword: 'NouveauMotdepasse1' });
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('validation');
+  });
 });
