@@ -2,7 +2,6 @@ import express, { type RequestHandler } from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import helmet from 'helmet';
-import { rateLimit } from 'express-rate-limit';
 import { config, isProd, isTest } from './config.js';
 import { errorHandler, ah, HttpError } from './http.js';
 import { q } from './db.js';
