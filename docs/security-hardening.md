@@ -22,7 +22,7 @@ Ce bloc ajoute des contrôles de défense en profondeur à l'API. Les contrôles
 - Contrôle de l'en-tête Origin sur les requêtes de modification, en complément de CORS.
 - Réponses d'authentification marquées `Cache-Control: no-store`.
 - Limites de taille du JSON et des corps de webhooks.
-- Limitation de débit différenciée pour connexion, inscription, vérification OTP, renvoi OTP, récupération/réinitialisation de mot de passe, fichiers, paiements et routes publiques.
+- Limitation de débit différenciée : connexion 5/15 min, inscription 5/h, vérification OTP 10/15 min, renvoi OTP et récupération 3/15 min, réinitialisation 5/15 min ; les fichiers, paiements, webhooks et routes publiques ont également leurs propres seuils.
 - Compteurs de débit persistés dans PostgreSQL : ils sont partagés entre plusieurs instances API et ne dépendent pas de la mémoire d'un seul processus. Les adresses IP sont pseudonymisées par HMAC avant stockage.
 - Nettoyage périodique des compteurs expirés.
 - Les événements d'authentification (échecs et succès de connexion, vérification du compte, réinitialisation du mot de passe et révocation de sessions) sont inscrits dans le journal d'audit existant. Les identifiants utilisés pour les échecs sont pseudonymisés.
