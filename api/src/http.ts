@@ -32,16 +32,16 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     return res.status(400).json({ error: { code: 'validation', message: summary ? `Données invalides : ${summary}` : 'Données invalides', details } });
   }
   const code: string | undefined = err?.code;
-  if (code === '23505') return res.status(409).json({ error: { code: 'conflict', message: 'Cette valeur existe déjà', constraint: err.constraint } });
+  if (code === '23505') return res.status(409).json({ error: { code: 'conflict', message: 'Cette valeur existe déjà' } });
   if (code === '23503') return res.status(409).json({ error: { code: 'reference', message: 'Référence invalide ou encore utilisée' } });
   if (code === '23514' || code === '23000') {
     // Avec err.constraint : un CHECK de table ; sans : une règle métier levée par un trigger (message déjà en français)
     return res.status(422).json({ error: { code: err.constraint ? 'constraint' : 'business_rule',
-      message: err.constraint ? 'Valeurs non conformes aux règles du concours' : err.message, constraint: err.constraint } });
+      message: err.constraint ? 'Valeurs non conformes aux règles du concours' : err.message } });
   }
   if (code === 'P0001') return res.status(422).json({ error: { code: 'business_rule', message: err.message } });
   if (err?.type === 'entity.too.large') return res.status(413).json({ error: { code: 'too_large', message: 'Fichier trop volumineux' } });
   if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: { code: 'bad_json', message: 'JSON invalide' } });
-  console.error('[erreur]', req.method, req.originalUrl, err);
+  console.error('[erreur]', req.method, req.path, err?.name ?? 'Error', err?.code ?? 'unknown');
   return res.status(500).json({ error: { code: 'internal', message: isProd ? 'Erreur interne' : String(err?.message ?? err) } });
 }
