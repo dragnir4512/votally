@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { ah, HttpError, toCamel } from '../http.js';
 import { q, withTx, type Db } from '../db.js';
 import { consumeOtp, hashTarget, issueOtp, maskPhone, normalizePhone } from '../security.js';
-import { defaultPaymentProvider, sms, type PaymentMethod } from '../providers.js';
+import { defaultPaymentProvider, getPaymentProvider, sms, type PaymentMethod } from '../providers.js';
+import { reconcileProviderPayment } from './webhooks.js';
 import { isProd } from '../config.js';
 
 export const publicRouter = Router();
@@ -279,4 +280,53 @@ publicRouter.get('/orders/:reference', ah(async (req, res) => {
        FROM vote_orders o JOIN contests c ON c.id = o.contest_id WHERE o.reference = $1`, [req.params.reference])).rows[0];
   if (!r) throw new HttpError(404, 'Commande introuvable', 'not_found');
   res.json({ order: toCamel(r) });
+}));
+
+
+// Vérification manuelle du paiement auprès de l'agrégateur
+publicRouter.post('/orders/:reference/verify', ah(async (req, res) => {
+  const payment = (await q(
+    `SELECT p.provider, p.provider_reference
+       FROM payments p
+       JOIN vote_orders o ON o.id = p.order_id
+      WHERE o.reference = $1`,
+    [req.params.reference],
+  )).rows[0];
+
+  if (!payment) {
+    throw new HttpError(404, 'Paiement introuvable', 'payment_not_found');
+  }
+
+  if (!payment.provider_reference) {
+    throw new HttpError(409, 'Référence du paiement indisponible', 'provider_reference_missing');
+  }
+
+  const provider = getPaymentProvider(payment.provider);
+
+  if (!provider) {
+    throw new HttpError(502, 'Prestataire de paiement indisponible', 'provider_unavailable');
+  }
+
+  const verification = await reconcileProviderPayment(
+    provider,
+    payment.provider_reference,
+  );
+
+  const order = (await q(
+    `SELECT o.reference, o.status, o.kind, o.votes_count, o.total_xaf,
+            o.confirmed_at, c.name AS contest_name, c.slug
+       FROM vote_orders o
+       JOIN contests c ON c.id = o.contest_id
+      WHERE o.reference = $1`,
+    [req.params.reference],
+  )).rows[0];
+
+  if (!order) {
+    throw new HttpError(404, 'Commande introuvable', 'not_found');
+  }
+
+  res.json({
+    verification,
+    order: toCamel(order),
+  });
 }));

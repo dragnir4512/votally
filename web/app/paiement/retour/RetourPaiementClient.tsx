@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -19,6 +20,7 @@ export default function RetourPaiementClient() {
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [checking, setChecking] = useState(false);
   const busy = useRef(false);
 
   useEffect(() => {
@@ -44,11 +46,11 @@ export default function RetourPaiementClient() {
             clearInterval(timer);
           }
         }
-      } catch (e) {
-  if (active) {
-    setError(true);
-    clearInterval(timer);
-  }
+      } catch {
+        if (active) {
+          setError(true);
+          clearInterval(timer);
+        }
       } finally {
         busy.current = false;
       }
@@ -63,8 +65,30 @@ export default function RetourPaiementClient() {
     };
   }, [reference, refresh]);
 
+  const verifyWithProvider = async () => {
+    if (!reference || checking) return;
+
+    setChecking(true);
+    setError(false);
+
+    try {
+      const result = await api<{ order: Order }>(
+        `/public/orders/${encodeURIComponent(reference)}/verify`,
+        { method: 'POST' }
+      );
+
+      setOrder(result.order);
+    } catch (e) {
+      console.error('[VOTALLY] Vérification du paiement échouée :', e);
+      setError(true);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const confirmed = order?.status === 'confirmed';
   const failed = ['failed', 'cancelled', 'refunded'].includes(order?.status ?? '');
+
   const title = confirmed
     ? 'Paiement confirmé'
     : failed
@@ -127,23 +151,25 @@ export default function RetourPaiementClient() {
 
         {error && (
           <p style={{ color: '#b45309', marginTop: 16 }}>
-            La vérification rencontre un problème réseau. Réessaie.
+            La vérification rencontre un problème. Réessaie.
           </p>
         )}
 
         {!confirmed && !failed && (
           <button
-            onClick={() => setRefresh((n) => n + 1)}
+            onClick={verifyWithProvider}
+            disabled={checking || !reference}
             style={{
               marginTop: 22,
               padding: '12px 20px',
               borderRadius: 8,
               border: '1px solid #ddd',
-              background: '#fff',
-              cursor: 'pointer'
+              background: checking ? '#eee' : '#fff',
+              cursor: checking ? 'not-allowed' : 'pointer',
+              opacity: checking ? 0.7 : 1
             }}
           >
-            Vérifier maintenant
+            {checking ? 'Vérification en cours...' : 'Vérifier maintenant'}
           </button>
         )}
 
