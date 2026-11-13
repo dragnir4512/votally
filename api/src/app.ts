@@ -23,7 +23,7 @@ const limiter = (limit: number, windowMs = 60_000) =>
 
 export function createApp() {
   const app = express();
-  app.set('trust proxy', 1);                                   // derrière Cloudflare / un reverse proxy : req.ip fiable
+  app.set('trust proxy', config.TRUST_PROXY_HOPS);             // nombre exact de proxies de confiance devant l'API
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors({ origin: config.CORS_ORIGINS.split(',').map((s) => s.trim()), credentials: true }));
