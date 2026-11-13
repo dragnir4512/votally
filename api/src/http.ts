@@ -39,7 +39,7 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
     return res.status(422).json({ error: { code: err.constraint ? 'constraint' : 'business_rule',
       message: err.constraint ? 'Valeurs non conformes aux règles du concours' : err.message } });
   }
-  if (code === 'P0001') return res.status(422).json({ error: { code: 'business_rule', message: err.message } });
+  if (code === 'P0001') return res.status(422).json({ error: { code: 'business_rule', message: isProd ? 'Opération impossible selon les règles métier' : err.message } });
   if (err?.type === 'entity.too.large') return res.status(413).json({ error: { code: 'too_large', message: 'Fichier trop volumineux' } });
   if (err?.type === 'entity.parse.failed') return res.status(400).json({ error: { code: 'bad_json', message: 'JSON invalide' } });
   console.error('[erreur]', req.method, req.path, err?.name ?? 'Error', err?.code ?? 'unknown');
