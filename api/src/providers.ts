@@ -1,6 +1,7 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { config, isProd, isTest } from './config.js';
 import { notchPayProvider } from './providers/notchpay.js';
+import { HttpError } from './http.js';
 
 // ============ SMS ============
 export interface SmsProvider { send(to: string, message: string): Promise<void>; }
@@ -13,6 +14,28 @@ class ConsoleSms implements SmsProvider {
   }
 }
 export const sms: SmsProvider = new ConsoleSms();
+
+
+export interface EmailMessage { to: string; subject: string; text: string; }
+export const email = {
+  async send(message: EmailMessage): Promise<void> {
+    if (!config.RESEND_API_KEY || !config.EMAIL_FROM) {
+      if (isProd) throw new HttpError(503, 'Envoi des emails indisponible pour le moment', 'email_unavailable');
+      if (!isTest) console.log(`[EMAIL → ${message.to}] ${message.subject}\n${message.text}`);
+      return;
+    }
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: config.EMAIL_FROM, to: [message.to], subject: message.subject, text: message.text }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      console.error('[EMAIL] Resend error', response.status, detail.slice(0, 500));
+      throw new HttpError(503, 'Impossible d’envoyer l’email pour le moment', 'email_delivery_failed');
+    }
+  },
+};
 
 // ============ PAIEMENT ============
 export type PaymentMethod = 'mtn_momo' | 'orange_money' | 'card';
