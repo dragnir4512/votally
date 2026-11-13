@@ -26,7 +26,8 @@ export default function Connexion() {
         <span className="auth-eyebrow">ESPACE PERSONNEL</span><h1>Heureux de vous revoir.</h1><p className="auth-intro">Connectez-vous pour gérer vos concours et suivre vos activités.</p>
         <label className="field"><span>Email ou téléphone</span><input className="input" required autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} placeholder="vous@exemple.com ou 690000000" /></label>
         <label className="field"><span>Mot de passe</span><input className="input" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        {error && <p className="error" role="alert">{error}</p>}
+        {<p className="small"><Link href="/mot-de-passe-oublie">Mot de passe oublié ?</Link></p>}
+        {error && <p className="error" role="alert">{error}</p>
         <button className="btn btn-primary block" type="submit" disabled={busy}>{busy ? 'Connexion…' : 'Se connecter'}</button>
         <p className="center small">Pas encore de compte ? <Link href="/inscription">Créer un compte</Link></p>
       </form>
