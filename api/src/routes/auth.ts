@@ -5,7 +5,7 @@ import { ah, HttpError, toCamel, uuidParam } from '../http.js';
 import { q, withTx } from '../db.js';
 import { config, isProd } from '../config.js';
 import { consumeOtp, clearSessionCookies, issueOtp, listSessions, normalizePhone, refreshSession, requireAuth, revokeAllSessions, revokeSessionById, sha256, startSession } from '../security.js';
-import { sms } from '../providers.js';
+import { email, sms } from '../providers.js';
 
 export const authRouter = Router();
 
@@ -18,39 +18,62 @@ const publicUser = (u: any) => toCamel({
   kyc_status: u.kyc_status, account_status: u.account_status, account_status_reason: u.account_status_reason,
   email_verified_at: u.email_verified_at, phone_verified_at: u.phone_verified_at });
 
+async function deliverCode(channel: 'email' | 'sms', target: string, code: string, purpose: 'signup' | 'password_reset') {
+  const label = purpose === 'signup' ? 'validation de votre compte' : 'réinitialisation de votre mot de passe';
+  const message = `Votre code VOTALLY pour la ${label} est : ${code}. Il expire dans 10 minutes. Ne le communiquez à personne.`;
+  if (channel === 'email') await email.send({ to: target, subject: purpose === 'signup' ? 'VOTALLY — Vérification du compte' : 'VOTALLY — Réinitialisation du mot de passe', text: message });
+  else await sms.send(target, message);
+}
+const genericRecoveryMessage = 'Si un compte vérifié correspond à ces informations, un code vient d’être envoyé.';
+
 authRouter.post('/register', ah(async (req, res) => {
   const body = identifier.safeExtend({
     password, fullName: z.string().min(2).max(120), locale: z.enum(['fr', 'en']).default('fr'),
     acceptTerms: z.literal(true, { error: 'Acceptation des CGU obligatoire' }),
     termsVersion: z.string().default('2026-10'),
   }).parse(req.body);
-  const email = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
+  const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
   const hash = await bcrypt.hash(body.password, config.BCRYPT_COST);
+  const target = emailAddress ?? phone!;
+  const channel = emailAddress ? 'email' : 'sms';
   const code = await withTx(null, async (c) => {
     await c.query(`INSERT INTO users (email, phone, password_hash, full_name, locale, terms_version, terms_accepted_at)
-      VALUES ($1, $2, $3, $4, $5, $6, now())`, [email ?? null, phone ?? null, hash, body.fullName, body.locale, body.termsVersion]);
-    return issueOtp(c, 'signup', email ? 'email' : 'sms', (email ?? phone)!, req.ip);
+      VALUES ($1, $2, $3, $4, $5, $6, now())`, [emailAddress ?? null, phone ?? null, hash, body.fullName, body.locale, body.termsVersion]);
+    return issueOtp(c, 'signup', channel, target, req.ip);
   });
-  if (phone) await sms.send(phone, `VOTALLY : votre code de vérification est ${code}`);
+  await deliverCode(channel, target, code, 'signup');
   res.status(201).json({ message: 'Code de vérification envoyé', ...(isProd ? {} : { devCode: code }) });
 }));
 
 authRouter.post('/verify', ah(async (req, res) => {
   const body = identifier.safeExtend({ code: z.string().regex(/^\\d{6}$/) }).parse(req.body);
-  const email = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
-  const existing = (await q(email
+  const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
+  const existing = (await q(emailAddress
     ? 'SELECT id, account_status FROM users WHERE email = $1 AND deleted_at IS NULL'
-    : 'SELECT id, account_status FROM users WHERE phone = $1 AND deleted_at IS NULL', [email ?? phone])).rows[0];
+    : 'SELECT id, account_status FROM users WHERE phone = $1 AND deleted_at IS NULL', [emailAddress ?? phone])).rows[0];
   if (!existing) throw new HttpError(404, 'Compte introuvable', 'not_found');
   if (existing.account_status !== 'active') throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
-  if (!(await consumeOtp('signup', (email ?? phone)!, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
-  const r = await q(email
+  if (!(await consumeOtp('signup', (emailAddress ?? phone)!, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
+  const r = await q(emailAddress
     ? 'UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE email = $1 AND deleted_at IS NULL RETURNING *'
-    : 'UPDATE users SET phone_verified_at = COALESCE(phone_verified_at, now()) WHERE phone = $1 AND deleted_at IS NULL RETURNING *', [email ?? phone]);
+    : 'UPDATE users SET phone_verified_at = COALESCE(phone_verified_at, now()) WHERE phone = $1 AND deleted_at IS NULL RETURNING *', [emailAddress ?? phone]);
   const user = r.rows[0];
   if (!user) throw new HttpError(404, 'Compte introuvable', 'not_found');
   await startSession(req, res, user);
   res.json({ user: publicUser(user) });
+}));
+
+authRouter.post('/resend-code', ah(async (req, res) => {
+  const body = identifier.parse(req.body);
+  const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
+  const channel = emailAddress ? 'email' : 'sms', target = emailAddress ?? phone!;
+  const user = (await q(emailAddress
+    ? 'SELECT email_verified_at AS verified, account_status FROM users WHERE email = $1 AND deleted_at IS NULL'
+    : 'SELECT phone_verified_at AS verified, account_status FROM users WHERE phone = $1 AND deleted_at IS NULL', [target])).rows[0];
+  if (!user || user.verified || user.account_status !== 'active') return res.json({ message: genericRecoveryMessage });
+  const code = await withTx(null, (c) => issueOtp(c, 'signup', channel, target, req.ip));
+  await deliverCode(channel, target, code, 'signup');
+  res.json({ message: 'Un nouveau code a été envoyé', ...(isProd ? {} : { devCode: code }) });
 }));
 
 authRouter.post('/login', ah(async (req, res) => {
@@ -68,7 +91,38 @@ authRouter.post('/login', ah(async (req, res) => {
   res.json({ user: publicUser(user) });
 }));
 
-// Renouvellement avec rotation du jeton opaque : chaque ancien refresh token ne peut servir qu'une fois.
+authRouter.post('/password/forgot', ah(async (req, res) => {
+  const body = identifier.parse(req.body);
+  const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
+  const channel = emailAddress ? 'email' : 'sms', target = emailAddress ?? phone!;
+  const user = (await q(emailAddress
+    ? 'SELECT id, email_verified_at AS verified, account_status FROM users WHERE email = $1 AND deleted_at IS NULL'
+    : 'SELECT id, phone_verified_at AS verified, account_status FROM users WHERE phone = $1 AND deleted_at IS NULL', [target])).rows[0];
+  if (!user || !user.verified || user.account_status !== 'active') return res.json({ message: genericRecoveryMessage });
+  const code = await withTx(null, (c) => issueOtp(c, 'password_reset', channel, target, req.ip));
+  await deliverCode(channel, target, code, 'password_reset');
+  res.json({ message: genericRecoveryMessage, ...(isProd ? {} : { devCode: code }) });
+}));
+
+authRouter.post('/password/reset', ah(async (req, res) => {
+  const body = identifier.safeExtend({ code: z.string().regex(/^\\d{6}$/), newPassword: password }).parse(req.body);
+  const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
+  const target = emailAddress ?? phone!;
+  const user = (await q(emailAddress
+    ? 'SELECT id, account_status, email_verified_at AS verified FROM users WHERE email = $1 AND deleted_at IS NULL'
+    : 'SELECT id, account_status, phone_verified_at AS verified FROM users WHERE phone = $1 AND deleted_at IS NULL', [target])).rows[0];
+  if (!user || !user.verified || user.account_status !== 'active') throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
+  if (!(await consumeOtp('password_reset', target, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
+  const hash = await bcrypt.hash(body.newPassword, config.BCRYPT_COST);
+  await withTx(user.id, async (c) => {
+    await c.query('UPDATE users SET password_hash = $2 WHERE id = $1', [user.id, hash]);
+    await c.query(`UPDATE user_sessions SET revoked_at = now(), revoke_reason = 'password_reset'
+      WHERE user_id = $1 AND revoked_at IS NULL`, [user.id]);
+  });
+  clearSessionCookies(res);
+  res.json({ message: 'Mot de passe modifié. Connectez-vous avec votre nouveau mot de passe.' });
+}));
+
 authRouter.post('/refresh', ah(async (req, res) => { res.json(await refreshSession(req, res)); }));
 
 authRouter.post('/logout', ah(async (req, res) => {
@@ -86,8 +140,6 @@ authRouter.get('/me', requireAuth, ah(async (req, res) => {
   if (!r.rows[0]) throw new HttpError(401, 'Session invalide', 'unauthenticated');
   res.json({ user: publicUser(r.rows[0]) });
 }));
-
-// Appareils connectés : seules les sessions du compte courant sont visibles et révocables.
 authRouter.get('/sessions', requireAuth, ah(async (req, res) => {
   const sessions = await listSessions(req.user!.id, req.user!.sessionId);
   res.json({ sessions: sessions.map((s) => toCamel(s)) });
