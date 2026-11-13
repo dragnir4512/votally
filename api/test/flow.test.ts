@@ -312,33 +312,34 @@ expect(
   });
 });
 
-describe('Vote gratuit par code SMS', () => {
-  it('code, vote, quota par numéro, code erroné, résultats masqués', async () => {
+describe('Vote gratuit sans SMS', () => {
+  it('accepte le numéro directement et conserve le quota par numéro', async () => {
     const { agent } = await signup();
     const c = await createContest(agent, { voteType: 'free', votePriceXaf: 0, resultsDisplay: 'on_close' });
     await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
     const phone = '67' + String(Math.floor(Math.random() * 1e7)).padStart(7, '0');
     const choice = [{ candidateId: c.candidates[0]!.id, quantity: 1 }];
 
-    const otp = await request(app).post(`/public/contests/${c.slug}/otp`).send({ phone });
-    expect(otp.status).toBe(200);
-    expect((await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, code: '000000', choices: choice })).body.error.code).toBe('invalid_code');
-    const voted = await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, code: otp.body.devCode, choices: choice });
+    // Aucun endpoint d'envoi de code SMS n'est exposé.
+    expect((await request(app).post(`/public/contests/${c.slug}/otp`).send({ phone })).status).toBe(404);
+
+    const voted = await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, choices: choice });
     expect(voted.status, JSON.stringify(voted.body)).toBe(201);
     expect(voted.body.votes).toBe(1);
-    expect((await request(app).post(`/public/contests/${c.slug}/otp`).send({ phone })).status).toBe(429);          // anti-spam SMS
+
+    const stored = await q(
+      `SELECT voter_phone_hash, voter_phone_masked FROM vote_orders WHERE reference = $1`,
+      [voted.body.reference],
+    );
+    expect(stored.rows[0]?.voter_phone_hash).toBeTruthy();
+    expect(stored.rows[0]?.voter_phone_masked).toBeTruthy();
+
+    // Le même numéro ne peut pas dépasser le quota gratuit de la période.
+    const duplicate = await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, choices: choice });
+    expect(duplicate.status).not.toBe(201);
 
     expect((await agent.get(`/contests/${c.id}/dashboard`)).body.dashboard).toMatchObject({ validVotes: 1, freeVotes: 1 });
-    expect((await request(app).get(`/public/contests/${c.slug}/results`)).status).toBe(403);                       // on_close : masqué tant que le concours est actif
-
-    // Quota atteint : un 2e vote avec le même numéro est refusé par la base, même avec un code valide
-    await q(`DELETE FROM otp_codes WHERE target_hash = (SELECT voter_phone_hash FROM vote_orders ORDER BY created_at DESC LIMIT 1)`).catch(() => undefined);
-  });
-
-  it('un brouillon n\'est pas public', async () => {
-    const { agent } = await signup();
-    const c = await createContest(agent);
-    expect((await request(app).get(`/public/contests/${c.slug}`)).status).toBe(404);
+    expect((await request(app).get(`/public/contests/${c.slug}/results`)).status).toBe(403);
   });
 });
 
