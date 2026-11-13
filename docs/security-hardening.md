@@ -29,7 +29,7 @@ Ce bloc ajoute des contrôles de défense en profondeur à l'API. Les contrôles
 - Les journaux d'erreur n'enregistrent plus les paramètres de requête ni l'objet d'erreur complet, et les réponses ne divulguent plus les noms de contraintes SQL.
 
 ### Configuration de production
-- Secrets JWT et PHONE_HASH_PEPPER : 32 caractères minimum en production, valeurs d'exemple interdites.
+- Secrets JWT et PHONE_HASH_PEPPER : 32 caractères minimum en production, valeurs d'exemple interdites ; coût bcrypt minimal de 12.
 - Origines CORS : origines HTTPS exactes uniquement, sans joker ni chemin.
 - Resend et l'adresse d'expédition doivent être configurés en production.
 - Le nombre de reverse proxies de confiance est configurable avec `TRUST_PROXY_HOPS`. Il doit correspondre exactement à l'infrastructure réelle.
