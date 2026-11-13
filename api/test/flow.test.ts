@@ -222,10 +222,23 @@ describe('Vote payant de bout en bout', () => {
     expect(beforePay.body.outcome).toBe('pending');
     expect((await request(app).get(`/public/orders/${order.body.reference}`)).body.order.status).toBe('pending');
 
-    mockProvider.setStatus(pay.provider_reference, 'succeeded');
-    const ok = await webhook('mock', evt);
-    expect(ok.body.outcome, JSON.stringify(ok.body)).toBe('confirmed');
-    expect((await webhook('mock', evt)).body.duplicate).toBe(true);                     // même événement rejoué
+   mockProvider.setStatus(pay.provider_reference, 'succeeded');
+
+// Deux notifications identiques reçues simultanément.
+const concurrentWebhooks = await Promise.all([
+  webhook('mock', evt),
+  webhook('mock', evt),
+]);
+
+// Un seul traitement doit confirmer le paiement.
+expect(
+  concurrentWebhooks.filter((r) => r.body.outcome === 'confirmed'),
+).toHaveLength(1);
+
+// L'autre notification doit être reconnue comme doublon.
+expect(
+  concurrentWebhooks.filter((r) => r.body.duplicate === true),
+).toHaveLength(1);
     expect((await webhook('mock', { ...evt, eventId: 'evt-' + rnd() })).body.outcome).toBe('already_confirmed');
 
     const res = await request(app).get(`/public/contests/${c.slug}/results`);
