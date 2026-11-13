@@ -9,9 +9,11 @@ import { email, sms } from '../providers.js';
 
 export const authRouter = Router();
 
-const password = z.string().min(8, '8 caractères minimum')
-  .regex(/[A-Z]/, 'Au moins une majuscule').regex(/[0-9]/, 'Au moins un chiffre');
-const identifier = z.object({ email: z.string().email().optional(), phone: z.string().optional() })
+const password = z.string().min(10, '10 caractères minimum')
+  .regex(/[a-z]/, 'Au moins une minuscule')
+  .regex(/[A-Z]/, 'Au moins une majuscule')
+  .regex(/[0-9]/, 'Au moins un chiffre');
+const identifier = z.object({ email: z.string().trim().email().transform((value) => value.toLowerCase()).optional(), phone: z.string().optional() })
   .refine((v) => !!v.email !== !!v.phone, 'Fournir soit un email, soit un téléphone');
 const publicUser = (u: any) => toCamel({
   id: u.id, email: u.email, phone: u.phone, full_name: u.full_name, role: u.role, locale: u.locale,
@@ -46,7 +48,7 @@ authRouter.post('/register', ah(async (req, res) => {
 }));
 
 authRouter.post('/verify', ah(async (req, res) => {
-  const body = identifier.safeExtend({ code: z.string().regex(/^\\d{6}$/) }).parse(req.body);
+  const body = identifier.safeExtend({ code: z.string().regex(/^\d{6}$/) }).parse(req.body);
   const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
   const existing = (await q(emailAddress
     ? 'SELECT id, account_status FROM users WHERE email = $1 AND deleted_at IS NULL'
