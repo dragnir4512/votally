@@ -304,14 +304,14 @@ contestsRouter.post('/:id/logo', rawFile, ah(async (req, res) => {
 // ---------- Packs de votes ----------
 contestsRouter.post('/:id/packs', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
-  await needRole(req, id, ['owner', 'manager']);
+  await needRole(req, id, ['owner']);
   const b = z.object({ votesCount: z.number().int().min(1).max(100000), priceXaf: z.number().int().min(1), label: z.string().max(60).nullish() }).parse(req.body);
   const r = await q('INSERT INTO vote_packs (contest_id, label, votes_count, price_xaf) VALUES ($1,$2,$3,$4) RETURNING *', [id, b.label ?? null, b.votesCount, b.priceXaf]);
   res.status(201).json({ pack: toCamel(r.rows[0]) });
 }));
 contestsRouter.delete('/:id/packs/:pid', ah(async (req, res) => {
   const id = uuidParam(req, 'id'); const pid = uuidParam(req, 'pid');
-  await needRole(req, id, ['owner', 'manager']);
+  await needRole(req, id, ['owner']);
   // Suppression douce : une commande passée peut référencer ce pack
   const r = await q('UPDATE vote_packs SET is_active = false WHERE id = $2 AND contest_id = $1 RETURNING id', [id, pid]);
   if (!r.rows[0]) throw new HttpError(404, 'Pack introuvable', 'not_found');
