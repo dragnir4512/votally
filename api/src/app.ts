@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import { config, isProd, isTest } from './config.js';
 import { errorHandler, ah, HttpError } from './http.js';
 import { q } from './db.js';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { mockProvider } from './providers.js';
 import { handleProviderEvent } from './routes/webhooks.js';
 import { authRouter } from './routes/auth.js';
@@ -19,7 +19,9 @@ import { mediaRouter } from './routes/media.js';
 const limiter = (limit: number, windowMs = 60_000, scope = 'global'): RequestHandler =>
   async (req, res, next) => {
     if (isTest) return next();
-    const key = `${scope}:${req.ip ?? req.socket.remoteAddress ?? 'unknown'}`;
+    const sourceIp = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const ipKey = createHmac('sha256', config.PHONE_HASH_PEPPER).update(sourceIp).digest('hex');
+    const key = `${scope}:${ipKey}`;
     try {
       const result = await q(
         `INSERT INTO api_rate_limits (rate_key, total_hits, reset_at)
