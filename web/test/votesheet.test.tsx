@@ -59,7 +59,7 @@ describe('VoteSheet — vote gratuit', () => {
     sheet(contest({ voteType: 'free' }));
     fireEvent.change(screen.getByPlaceholderText(/690 00 00 00/), { target: { value: '690000000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer mon vote' }));
-    await screen.findByText(/Trop de requêtes/);
+    await screen.findByText('Trop de tentatives. Réessaie dans un instant.');
   });
 
   it('limite les choix selon maxChoicesPerVote, indépendamment du quota gratuit par période', () => {
