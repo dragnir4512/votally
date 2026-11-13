@@ -147,7 +147,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
       if (!user) return next(new HttpError(401, 'Session invalide ou révoquée', 'unauthenticated'));
       if (user.account_status !== 'active') return next(new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable'));
       req.user = { id: userId, role: user.role === 'admin' ? 'admin' : 'creator', sessionId };
-      q('UPDATE user_sessions SET last_seen_at = now() WHERE id = $1 AND last_seen_at < now() - interval '1 minute'', [sessionId]).catch(() => undefined);
+      q(`UPDATE user_sessions SET last_seen_at = now() WHERE id = $1 AND last_seen_at < now() - interval '1 minute'`, [sessionId]).catch(() => undefined);
       next();
     }).catch(next);
 }
