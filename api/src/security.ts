@@ -15,12 +15,12 @@ export const sha256 = (s: string | Buffer) => createHash('sha256').update(s).dig
 // ---------- Téléphones ----------
 /** Accepte 6XXXXXXXX, 2376XXXXXXXX, +2376XXXXXXXX et tout numéro E.164 valide. */
 export function normalizePhone(input: string): string {
-  const raw = input.replace(/[\\s().-]/g, '');
+  const raw = input.replace(/[\s().-]/g, '');
   let p = raw;
-  if (/^[62]\\d{8}$/.test(raw)) p = '+237' + raw;
-  else if (/^237\\d{9}$/.test(raw)) p = '+' + raw;
+  if (/^[62]\d{8}$/.test(raw)) p = '+237' + raw;
+  else if (/^237\d{9}$/.test(raw)) p = '+' + raw;
   else if (/^00/.test(raw)) p = '+' + raw.slice(2);
-  if (!/^\\+[1-9]\\d{7,14}$/.test(p)) throw new HttpError(400, 'Numéro de téléphone invalide', 'invalid_phone');
+  if (!/^\+[1-9]\d{7,14}$/.test(p)) throw new HttpError(400, 'Numéro de téléphone invalide', 'invalid_phone');
   return p;
 }
 export const hashTarget = (target: string): Buffer => sha256(target.toLowerCase() + config.PHONE_HASH_PEPPER);
@@ -69,7 +69,7 @@ const REFRESH_TTL_MS = REFRESH_TTL_DAYS * 24 * 3600 * 1000;
 const cookieOptions = { httpOnly: true, secure: isProd, sameSite: 'lax' as const, path: '/' };
 
 function setAccessCookie(res: Response, user: { id: string; role: string }, sessionId: string) {
-  const token = jwt.sign({ sub: user.id, role: user.role, sid: sessionId }, config.JWT_SECRET, { expiresIn: ACCESS_TTL_SECONDS });
+  const token = jwt.sign({ sub: user.id, role: user.role, sid: sessionId }, config.JWT_SECRET, { algorithm: 'HS256', expiresIn: ACCESS_TTL_SECONDS });
   res.cookie(ACCESS_COOKIE, token, { ...cookieOptions, maxAge: ACCESS_TTL_SECONDS * 1000 });
 }
 function setRefreshCookie(res: Response, token: string) {
@@ -134,7 +134,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const token = readToken(req);
   if (!token) return next(new HttpError(401, 'Connexion requise', 'unauthenticated'));
   let payload: jwt.JwtPayload;
-  try { payload = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload; }
+  try { payload = jwt.verify(token, config.JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload; }
   catch { return next(new HttpError(401, 'Session expirée', 'unauthenticated')); }
   const userId = String(payload.sub ?? ''), sessionId = String(payload.sid ?? '');
   if (!userId || !sessionId) return next(new HttpError(401, 'Session invalide : reconnectez-vous', 'unauthenticated'));
