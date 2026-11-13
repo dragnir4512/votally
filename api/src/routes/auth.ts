@@ -74,7 +74,8 @@ authRouter.post('/resend-code', ah(async (req, res) => {
   let code: string;
   try { code = await withTx(null, (c) => issueOtp(c, 'signup', channel, target, req.ip)); }
   catch (error) { if (error instanceof HttpError && error.code === 'otp_throttled') return res.json({ message: genericRecoveryMessage }); throw error; }
-  await deliverCode(channel, target, code, 'signup');
+  try { await deliverCode(channel, target, code, 'signup'); }
+  catch (error) { console.error('[auth] resend delivery failed', error); return res.json({ message: genericRecoveryMessage }); }
   res.json({ message: 'Un nouveau code a été envoyé', ...(isProd ? {} : { devCode: code }) });
 }));
 
@@ -104,7 +105,8 @@ authRouter.post('/password/forgot', ah(async (req, res) => {
   let code: string;
   try { code = await withTx(null, (c) => issueOtp(c, 'password_reset', channel, target, req.ip)); }
   catch (error) { if (error instanceof HttpError && error.code === 'otp_throttled') return res.json({ message: genericRecoveryMessage }); throw error; }
-  await deliverCode(channel, target, code, 'password_reset');
+  try { await deliverCode(channel, target, code, 'password_reset'); }
+  catch (error) { console.error('[auth] password recovery delivery failed', error); return res.json({ message: genericRecoveryMessage }); }
   res.json({ message: genericRecoveryMessage, ...(isProd ? {} : { devCode: code }) });
 }));
 
