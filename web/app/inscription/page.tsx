@@ -18,6 +18,7 @@ export default function Inscription() {
     const r = await api<{ devCode?: string }>('/auth/register', { body: { ...target, password: f.password, fullName: f.fullName.trim(), acceptTerms: f.accept } });
     setDevCode(r.devCode ?? null); setStep('code'); }); };
   const verify = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api('/auth/verify', { body: { ...target, code } }); router.replace('/espace'); }); };
+  const resend = () => run(async () => { const r = await api<{ devCode?: string; message: string }>('/auth/resend-code', { body: target }); setDevCode(r.devCode ?? null); });
 
   return (
     <main className="authbox auth-page auth-register">
@@ -45,6 +46,7 @@ export default function Inscription() {
           <input className="input code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-label="Code de vérification" />
           {error && <p className="error" role="alert">{error}</p>}
           <button className="btn btn-primary block" type="submit" disabled={busy || code.length !== 6}>Valider</button>
+          <button className="btn btn-link block" type="button" disabled={busy} onClick={resend}>Renvoyer le code</button>
           <button className="btn btn-link block" type="button" onClick={() => { setStep('form'); setCode(''); setError(null); }}>Modifier mes informations</button>
         </form>
       )}
