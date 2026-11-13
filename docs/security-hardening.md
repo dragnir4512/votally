@@ -48,4 +48,4 @@ Appliquer `db/migrations/019_api_rate_limits.sql` avant de déployer cette versi
 
 ## Couverture de régression ajoutée
 
-`api/test/security.test.ts` vérifie la normalisation des numéros camerounais, le rejet d'une origine non autorisée et le format des codes OTP.
+`api/test/security.test.ts` vérifie la normalisation des numéros camerounais, le rejet d'une origine non autorisée, le format des codes OTP et la robustesse minimale des mots de passe.
