@@ -70,6 +70,7 @@ export async function reconcileProviderPayment(
   return {
     received: true,
     outcome: verification.status,
+
     paymentStatus: verification.status,
   };
 }
@@ -78,37 +79,57 @@ export async function reconcileProviderPayment(
  * Traite un événement d'agrégateur.
  * Anti-rejeu -> vérification serveur à serveur -> confirmation atomique.
  */
+
 export async function handleProviderEvent(
   provider: PaymentProvider,
   eventId: string,
   providerReference: string,
   payload: unknown,
 ) {
-  const ins = await q(
+  // Enregistrer l'événement sans créer de doublon.
+  await q(
     `INSERT INTO webhook_events (provider, event_id, signature_valid, payload)
      VALUES ($1, $2, true, $3)
-     ON CONFLICT (provider, event_id) DO NOTHING
-     RETURNING id`,
+     ON CONFLICT (provider, event_id) DO NOTHING`,
     [provider.name, eventId, payload],
   );
 
-  let eventRowId: number | undefined = ins.rows[0]?.id;
+  // Réserver atomiquement le traitement de cet événement.
+  // Un verrou abandonné peut être récupéré après 2 minutes.
+  const claim = await q(
+    `UPDATE webhook_events
+     SET processing_started_at = now(),
+         processing_error = NULL
+     WHERE provider = $1
+       AND event_id = $2
+       AND processed_at IS NULL
+       AND (
+         processing_started_at IS NULL
+         OR processing_started_at < now() - interval '2 minutes'
+       )
+     RETURNING id`,
+    [provider.name, eventId],
+  );
 
+  const eventRowId = claim.rows[0]?.id;
+
+  // Un autre traitement possède déjà le verrou,
+  // ou l'événement a déjà été traité.
   if (!eventRowId) {
     const existing = (
       await q(
-        `SELECT id, processed_at
+        `SELECT processed_at
          FROM webhook_events
          WHERE provider = $1 AND event_id = $2`,
         [provider.name, eventId],
       )
     ).rows[0];
 
-    if (existing.processed_at) {
-      return { received: true, duplicate: true as const };
+    if (!existing) {
+      throw new Error('Événement webhook introuvable.');
     }
 
-    eventRowId = existing.id;
+    return { received: true, duplicate: true as const };
   }
 
   try {
@@ -119,7 +140,9 @@ export async function handleProviderEvent(
 
     await q(
       `UPDATE webhook_events
-       SET processed_at = now(), processing_error = NULL
+       SET processed_at = now(),
+           processing_started_at = NULL,
+           processing_error = NULL
        WHERE id = $1`,
       [eventRowId],
     );
@@ -131,7 +154,10 @@ export async function handleProviderEvent(
       : String(error);
 
     await q(
-      'UPDATE webhook_events SET processing_error = $2 WHERE id = $1',
+      `UPDATE webhook_events
+       SET processing_started_at = NULL,
+           processing_error = $2
+       WHERE id = $1`,
       [eventRowId, message.slice(0, 500)],
     );
 
