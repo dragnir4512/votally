@@ -23,7 +23,7 @@ const fr = {
     paid_votes_closed: 'Les votes payants sont fermés.', phone_required: 'Le numéro Mobile Money est obligatoire.',
     invalid_phone: 'Numéro de téléphone invalide.', rate_limited: 'Trop de tentatives. Réessaie dans un instant.',
     provider_unavailable: 'Le service de paiement est indisponible. Réessaie dans un instant.', choices_mismatch: 'Répartition des votes incorrecte.',
-    invalid_candidate: 'Candidat invalide.',
+    invalid_candidate: 'Candidat invalide.', invalid_code: 'Code incorrect ou expiré.',
   } as Record<string, string>,
 };
 
@@ -50,7 +50,7 @@ const en: typeof fr = {
     paid_votes_closed: 'Paid voting is closed.', phone_required: 'A Mobile Money number is required.',
     invalid_phone: 'Invalid phone number.', rate_limited: 'Too many attempts. Please try again shortly.',
     provider_unavailable: 'The payment service is unavailable. Please try again shortly.', choices_mismatch: 'Votes are not split correctly.',
-    invalid_candidate: 'Invalid candidate.',
+    invalid_candidate: 'Invalid candidate.', invalid_code: 'Incorrect or expired code.',
   },
 };
 
