@@ -165,11 +165,27 @@ contestsRouter.patch('/:id', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
   const role = await needRole(req, id, ['owner', 'manager']);
   const b = contestPatch.parse(req.body) as Record<string, any>;
-  if (role !== 'owner' && Object.keys(b).some((field) => OWNER_ONLY_PATCH_FIELDS.has(field))) {
-    throw new HttpError(403, 'Seul le propriétaire peut modifier les paramètres structurants du vote', 'owner_permission_required');
-  }
-  const current = (await q('SELECT visibility, access_password_hash, starts_at, ends_at, vote_type, vote_price_xaf FROM contests WHERE id = $1', [id])).rows[0];
+  const current = (await q(`SELECT slug, visibility, access_password_hash, starts_at, ends_at, vote_type,
+      vote_price_xaf, max_choices_per_vote, free_votes_per_period, free_vote_period_hours, results_display
+    FROM contests WHERE id = $1`, [id])).rows[0];
   if (!current) throw new HttpError(404, 'Concours introuvable', 'not_found');
+  if (role !== 'owner') {
+    const sameDate = (a: unknown, b: unknown) => a == null && b == null ||
+      a != null && b != null && new Date(a as string | Date).getTime() === new Date(b as string | Date).getTime();
+    const restrictedChange =
+      b.slug !== undefined && String(b.slug).toLowerCase() !== String(current.slug).toLowerCase() ||
+      b.voteType !== undefined && b.voteType !== current.vote_type ||
+      b.votePriceXaf !== undefined && b.votePriceXaf !== Number(current.vote_price_xaf) ||
+      b.maxChoicesPerVote !== undefined && b.maxChoicesPerVote !== Number(current.max_choices_per_vote) ||
+      b.freeVotesPerPeriod !== undefined && b.freeVotesPerPeriod !== Number(current.free_votes_per_period) ||
+      b.freeVotePeriodHours !== undefined && b.freeVotePeriodHours !== Number(current.free_vote_period_hours) ||
+      b.startsAt !== undefined && !sameDate(b.startsAt, current.starts_at) ||
+      b.endsAt !== undefined && !sameDate(b.endsAt, current.ends_at) ||
+      b.visibility !== undefined && b.visibility !== current.visibility ||
+      b.resultsDisplay !== undefined && b.resultsDisplay !== current.results_display ||
+      b.accessPassword !== undefined && (b.accessPassword ? true : Boolean(current.access_password_hash));
+    if (restrictedChange) throw new HttpError(403, 'Seul le propriétaire peut modifier les paramètres structurants du vote', 'owner_permission_required');
+  }
   // Valide l'état final, pas seulement les champs présents dans le PATCH.
   const nextStartsAt = b.startsAt === undefined ? current.starts_at : b.startsAt;
   const nextEndsAt = b.endsAt === undefined ? current.ends_at : b.endsAt;
