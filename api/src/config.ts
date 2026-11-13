@@ -21,8 +21,8 @@ const schema = z.object({
   NOTCHPAY_HASH_KEY: z.string().min(1).optional(),
   NOTCHPAY_CALLBACK_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3001'),
-  RESEND_API_KEY: z.string().min(1).optional(),
-  EMAIL_FROM: z.string().min(3).optional(),
+  RESEND_API_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  EMAIL_FROM: z.preprocess((v) => v === '' ? undefined : v, z.string().min(3).optional()),
   // Dossier des fichiers téléversés (développement / serveur unique). En production : stockage objet S3 (voir storage.ts).
   UPLOAD_DIR: z.string().default('./uploads'),
 }).superRefine((data, ctx) => {
