@@ -16,6 +16,7 @@ function Header() {
   const links = [
     { href: '/espace', label: 'Tableau de bord', short: 'Accueil' },
     { href: '/espace/compte', label: 'Mon compte', short: 'Compte' },
+    { href: '/espace/securite', label: 'Sécurité', short: 'Sécurité' },
   ];
   return (
     <header className="creator-top">

@@ -11,6 +11,14 @@ const timer = setInterval(() => { q('SELECT expire_pending_orders()').catch((e) 
 
 const payoutTimer = setInterval(() => { settlePayouts().catch((e) => console.error('[retraits]', e.message)); }, 60_000);
 
-const shutdown = () => { clearInterval(timer); clearInterval(payoutTimer); server.close(() => pool.end().then(() => process.exit(0))); };
+// Nettoyage périodique des clés de limitation de débit expirées.
+const rateLimitCleanupTimer = setInterval(() => {
+  Promise.all([
+    q("DELETE FROM api_rate_limits WHERE reset_at < now() - interval '1 day'"),
+    q("DELETE FROM otp_codes WHERE expires_at < now() - interval '7 days'"),
+  ]).catch((e) => console.error('[security-cleanup]', e.message));
+}, 60 * 60_000);
+
+const shutdown = () => { clearInterval(timer); clearInterval(payoutTimer); clearInterval(rateLimitCleanupTimer); server.close(() => pool.end().then(() => process.exit(0))); };
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

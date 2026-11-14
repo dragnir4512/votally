@@ -20,9 +20,12 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
   useEffect(() => {
     setNow(Date.now()); setOrigin(window.location.origin);
     if (focus) document.getElementById(`c${focus.number}`)?.scrollIntoView({ block: 'center' });
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, [focus]);
 
   const color = sanitizeColor(contest.theme?.primaryColor, '#D71920');
+  const template = contest.theme?.template === 'spotlight' || contest.theme?.template === 'minimal' ? contest.theme.template : 'editorial';
   const banner = mediaUrl(contest.bannerKey);
   const logoKey = typeof contest.theme?.logoKey === 'string' ? contest.theme.logoKey : null;
   const logoUrl = logoKey ? mediaUrl(logoKey) : null;
@@ -37,6 +40,13 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
 
   const statusLine = over ? t('statusEnded') : contest.status === 'paused' ? t('statusPaused')
     : notStarted && starts ? t('statusSoon', { date: fmtDate(starts) }) : ends ? t('statusEnds', { date: fmtDate(ends) }) : null;
+  const remainingSeconds = starts && now !== null ? Math.max(0, Math.floor((starts - now) / 1000)) : 0;
+  const countdownParts = [
+    { value: Math.floor(remainingSeconds / 86400), label: 'JOURS' },
+    { value: Math.floor((remainingSeconds % 86400) / 3600), label: 'HEURES' },
+    { value: Math.floor((remainingSeconds % 3600) / 60), label: 'MINUTES' },
+    { value: remainingSeconds % 60, label: 'SECONDES' },
+  ];
 
   const toggle = (id: string) => setSelected((cur) => {
     if (cur.includes(id)) return cur.filter((x) => x !== id);
@@ -49,7 +59,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
   const pageStyle = { '--primary': color, '--contest-accent': color } as CSSProperties;
 
   return (
-    <div className="page public-contest" style={pageStyle}>
+    <div className={`page public-contest public-template-${template}`} style={pageStyle}>
       <header className="public-top">
         <div className="public-top-inner">
           <a className="public-identity" href={base || '/'} aria-label={contest.name}>
@@ -78,6 +88,14 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
               {contest.voteType !== 'free' && <span>{t('pricePerVote', { price: formatXaf(contest.votePriceXaf, lang) })}</span>}
               <span>{candidates.length} {t('candidates').toLowerCase()}</span>
             </div>
+            {notStarted && starts && contest.status === 'active' && (
+              <section className="vote-countdown" aria-live="polite" aria-label="Compte à rebours avant l'ouverture des votes">
+                <div className="vote-countdown-copy"><span>OUVERTURE DES VOTES</span><strong>Le vote commence dans</strong></div>
+                <div className="vote-countdown-grid">
+                  {countdownParts.map((part) => <div className="vote-countdown-unit" key={part.label}><strong>{String(part.value).padStart(2, '0')}</strong><span>{part.label}</span></div>)}
+                </div>
+              </section>
+            )}
             {canVote && <a className="public-cover-cta" href="#participants" onClick={() => setTab('candidates')}>{t('candidates')} <span>↓</span></a>}
           </div>
           <div className="public-cover-side" aria-hidden="true"><span className="public-cover-number">01</span><span className="public-cover-line" /></div>

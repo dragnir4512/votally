@@ -52,6 +52,31 @@ describe('Authentification', () => {
     expect((await request(app).get('/auth/me')).status).toBe(401);
   });
 
+
+  it('expose un profil modifiable sans permettre de changer les coordonnées vérifiées ou le rôle', async () => {
+    const { agent, email } = await signup();
+    const initial = await agent.get('/me/profile');
+    expect(initial.status).toBe(200);
+    expect(initial.body.profile).toMatchObject({ email, role: 'creator', accountStatus: 'active' });
+    const updated = await agent.patch('/me/profile').send({ fullName: 'Nouveau Nom', locale: 'en' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.profile).toMatchObject({ fullName: 'Nouveau Nom', locale: 'en', email, role: 'creator' });
+    expect((await agent.patch('/me/profile').send({ role: 'admin' })).status).toBe(400);
+    expect((await agent.patch('/me/profile').send({ email: 'pirate@example.cm' })).status).toBe(400);
+  });
+
+  it('bloque immédiatement les comptes suspendus ou désactivés', async () => {
+    const { agent, userId, email } = await signup();
+    await q(`UPDATE users SET account_status = 'suspended', account_status_reason = 'Test de suspension' WHERE id = $1`, [userId]);
+    expect((await agent.get('/auth/me')).status).toBe(403);
+    expect((await agent.get('/me/profile')).body.error.code).toBe('account_unavailable');
+    expect((await request(app).post('/auth/login').send({ email, password: PASSWORD })).status).toBe(403);
+    await q(`UPDATE users SET account_status = 'disabled' WHERE id = $1`, [userId]);
+    expect((await agent.get('/auth/me')).status).toBe(403);
+    await q(`UPDATE users SET account_status = 'active', account_status_reason = NULL WHERE id = $1`, [userId]);
+    expect((await agent.get('/auth/me')).status).toBe(200);
+  });
+
   it('inscription par téléphone camerounais local (9 chiffres)', async () => {
     const phone = '6' + String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
     const r = await request(app).post('/auth/register').send({ phone, password: PASSWORD, fullName: 'Tel Test', acceptTerms: true });
@@ -185,6 +210,51 @@ describe('Concours : règles métier', () => {
     expect((await viewer.agent.get(`/contests/${c.id}/dashboard`)).body.dashboard.grossXaf).toBeUndefined();
     expect((await owner.agent.get(`/contests/${c.id}/dashboard`)).body.dashboard.grossXaf).toBe(0);
   });
+
+  it('applique la matrice owner / manager / viewer et protège les données financières', async () => {
+    const owner = await signup(); const manager = await signup(); const viewer = await signup();
+    const c = await createContest(owner.agent);
+    await owner.agent.post(`/contests/${c.id}/actions/activate`).expect(200);
+    const order = await request(app).post(`/public/contests/${c.slug}/orders`)
+      .send({ method: 'mtn_momo', phone: '691234567', choices: [{ candidateId: c.candidates[0]!.id, quantity: 1 }] });
+    expect(order.status).toBe(201);
+
+    const managerInvite = await owner.agent.post(`/contests/${c.id}/members/invite`).send({ role: 'manager' });
+    const viewerInvite = await owner.agent.post(`/contests/${c.id}/members/invite`).send({ role: 'viewer' });
+    await manager.agent.post('/contests/invitations/accept').send({ token: managerInvite.body.inviteToken }).expect(200);
+    await viewer.agent.post('/contests/invitations/accept').send({ token: viewerInvite.body.inviteToken }).expect(200);
+
+    // Gestionnaire : contenu et suivi opérationnel autorisés.
+    await manager.agent.patch(`/contests/${c.id}`).send({ description: 'Description mise à jour par le gestionnaire' }).expect(200);
+    await manager.agent.get(`/contests/${c.id}/results`).expect(200);
+    const managerOrders = await manager.agent.get(`/contests/${c.id}/orders`).expect(200);
+    expect(managerOrders.body.orders[0].totalXaf).toBeUndefined();
+    expect(managerOrders.body.orders[0].subtotalXaf).toBeUndefined();
+    await manager.agent.post(`/contests/${c.id}/candidates`).send([{ name: 'Candidat gestionnaire' }]).expect(201);
+
+    // Paramètres sensibles, tarifs et cycle de vie : propriétaire uniquement.
+    await manager.agent.patch(`/contests/${c.id}`).send({ votePriceXaf: 200 }).expect(403);
+    await manager.agent.post(`/contests/${c.id}/packs`).send({ votesCount: 10, priceXaf: 900 }).expect(403);
+    await manager.agent.post(`/contests/${c.id}/actions/pause`).expect(403);
+    await manager.agent.post(`/contests/${c.id}/members/invite`).send({ role: 'viewer' }).expect(403);
+    const memberRows = (await manager.agent.get(`/contests/${c.id}/members`).expect(200)).body.members;
+    await manager.agent.patch(`/contests/${c.id}/members/${memberRows[0].id}`).send({ role: 'viewer' }).expect(403);
+
+    // Observateur : consultation seulement, aucun accès aux commandes ou à l'équipe.
+    await viewer.agent.get(`/contests/${c.id}/dashboard`).expect(200);
+    await viewer.agent.get(`/contests/${c.id}/results`).expect(200);
+    await viewer.agent.get(`/contests/${c.id}/orders`).expect(403);
+    await viewer.agent.get(`/contests/${c.id}/members`).expect(403);
+    await viewer.agent.post(`/contests/${c.id}/candidates`).send([{ name: 'Tentative observateur' }]).expect(403);
+    await viewer.agent.delete(`/contests/${c.id}`).expect(403);
+
+    // Seul le propriétaire peut faire évoluer un collaborateur entre les deux rôles délégués.
+    const ownerMembers = (await owner.agent.get(`/contests/${c.id}/members`).expect(200)).body.members;
+    const managerMember = ownerMembers.find((m: { role: string }) => m.role === 'manager');
+    expect(managerMember).toBeTruthy();
+    await owner.agent.patch(`/contests/${c.id}/members/${managerMember.id}`).send({ role: 'viewer' }).expect(200);
+    expect((await manager.agent.get(`/contests/${c.id}`)).body.myRole).toBe('viewer');
+  });
 });
 
 describe('Vote payant de bout en bout', () => {
@@ -222,10 +292,23 @@ describe('Vote payant de bout en bout', () => {
     expect(beforePay.body.outcome).toBe('pending');
     expect((await request(app).get(`/public/orders/${order.body.reference}`)).body.order.status).toBe('pending');
 
-    mockProvider.setStatus(pay.provider_reference, 'succeeded');
-    const ok = await webhook('mock', evt);
-    expect(ok.body.outcome, JSON.stringify(ok.body)).toBe('confirmed');
-    expect((await webhook('mock', evt)).body.duplicate).toBe(true);                     // même événement rejoué
+   mockProvider.setStatus(pay.provider_reference, 'succeeded');
+
+// Deux notifications identiques reçues simultanément.
+const concurrentWebhooks = await Promise.all([
+  webhook('mock', evt),
+  webhook('mock', evt),
+]);
+
+// Un seul traitement doit confirmer le paiement.
+expect(
+  concurrentWebhooks.filter((r) => r.body.outcome === 'confirmed'),
+).toHaveLength(1);
+
+// L'autre notification doit être reconnue comme doublon.
+expect(
+  concurrentWebhooks.filter((r) => r.body.duplicate === true),
+).toHaveLength(1);
     expect((await webhook('mock', { ...evt, eventId: 'evt-' + rnd() })).body.outcome).toBe('already_confirmed');
 
     const res = await request(app).get(`/public/contests/${c.slug}/results`);
@@ -274,33 +357,34 @@ describe('Vote payant de bout en bout', () => {
   });
 });
 
-describe('Vote gratuit par code SMS', () => {
-  it('code, vote, quota par numéro, code erroné, résultats masqués', async () => {
+describe('Vote gratuit sans SMS', () => {
+  it('accepte le numéro directement et conserve le quota par numéro', async () => {
     const { agent } = await signup();
     const c = await createContest(agent, { voteType: 'free', votePriceXaf: 0, resultsDisplay: 'on_close' });
     await agent.post(`/contests/${c.id}/actions/activate`).expect(200);
     const phone = '67' + String(Math.floor(Math.random() * 1e7)).padStart(7, '0');
     const choice = [{ candidateId: c.candidates[0]!.id, quantity: 1 }];
 
-    const otp = await request(app).post(`/public/contests/${c.slug}/otp`).send({ phone });
-    expect(otp.status).toBe(200);
-    expect((await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, code: '000000', choices: choice })).body.error.code).toBe('invalid_code');
-    const voted = await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, code: otp.body.devCode, choices: choice });
+    // Aucun endpoint d'envoi de code SMS n'est exposé.
+    expect((await request(app).post(`/public/contests/${c.slug}/otp`).send({ phone })).status).toBe(404);
+
+    const voted = await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, choices: choice });
     expect(voted.status, JSON.stringify(voted.body)).toBe(201);
     expect(voted.body.votes).toBe(1);
-    expect((await request(app).post(`/public/contests/${c.slug}/otp`).send({ phone })).status).toBe(429);          // anti-spam SMS
+
+    const stored = await q(
+      `SELECT voter_phone_hash, voter_phone_masked FROM vote_orders WHERE reference = $1`,
+      [voted.body.reference],
+    );
+    expect(stored.rows[0]?.voter_phone_hash).toBeTruthy();
+    expect(stored.rows[0]?.voter_phone_masked).toBeTruthy();
+
+    // Le même numéro ne peut pas dépasser le quota gratuit de la période.
+    const duplicate = await request(app).post(`/public/contests/${c.slug}/votes/free`).send({ phone, choices: choice });
+    expect(duplicate.status).not.toBe(201);
 
     expect((await agent.get(`/contests/${c.id}/dashboard`)).body.dashboard).toMatchObject({ validVotes: 1, freeVotes: 1 });
-    expect((await request(app).get(`/public/contests/${c.slug}/results`)).status).toBe(403);                       // on_close : masqué tant que le concours est actif
-
-    // Quota atteint : un 2e vote avec le même numéro est refusé par la base, même avec un code valide
-    await q(`DELETE FROM otp_codes WHERE target_hash = (SELECT voter_phone_hash FROM vote_orders ORDER BY created_at DESC LIMIT 1)`).catch(() => undefined);
-  });
-
-  it('un brouillon n\'est pas public', async () => {
-    const { agent } = await signup();
-    const c = await createContest(agent);
-    expect((await request(app).get(`/public/contests/${c.slug}`)).status).toBe(404);
+    expect((await request(app).get(`/public/contests/${c.slug}/results`)).status).toBe(403);
   });
 });
 

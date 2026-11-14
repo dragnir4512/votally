@@ -21,6 +21,66 @@ adminRouter.get('/overview', ah(async (_req, res) => {
   res.json({ overview: toCamel(r) });
 }));
 
+// ---------- Comptes utilisateurs ----------
+adminRouter.get('/users', ah(async (req, res) => {
+  const status = z.enum(['active', 'suspended', 'disabled']).optional().parse(req.query.status);
+  const term = z.string().trim().max(80).default('').parse(req.query.q ?? '');
+  const r = await q(
+    `SELECT id, email, phone, full_name, role, account_status, account_status_reason,
+            account_status_changed_at, email_verified_at, phone_verified_at, created_at
+       FROM users
+      WHERE deleted_at IS NULL
+        AND ($1::text IS NULL OR account_status = $1)
+        AND ($2 = '' OR email::text ILIKE '%' || $2 || '%' OR phone ILIKE '%' || $2 || '%' OR full_name ILIKE '%' || $2 || '%')
+      ORDER BY created_at DESC LIMIT 100`,
+    [status ?? null, term]);
+  res.json({ users: r.rows.map((x) => toCamel(x)) });
+}));
+
+async function changeAccountStatus(userId: string, actorId: string, status: 'active' | 'suspended' | 'disabled', reason: string | null) {
+  return withTx(actorId, async (c) => {
+    const target = (await c.query(
+      'SELECT id, role, account_status FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+      [userId])).rows[0];
+    if (!target) throw new HttpError(404, 'Utilisateur introuvable', 'not_found');
+    if (target.id === actorId && status !== 'active') throw new HttpError(409, 'Un administrateur ne peut pas suspendre ou désactiver son propre compte', 'self_lockout');
+    if (target.role === 'admin' && status !== 'active' && target.account_status === 'active') {
+      // Verrouille les administrateurs actifs pour empêcher deux suspensions simultanées
+      // de laisser la plateforme sans aucun administrateur.
+      const admins = await c.query(
+        `SELECT id FROM users WHERE role = 'admin' AND account_status = 'active' AND deleted_at IS NULL FOR UPDATE`);
+      if (admins.rows.length <= 1) throw new HttpError(409, 'Impossible de désactiver le dernier administrateur actif', 'last_admin');
+    }
+    const updated = await c.query(
+      `UPDATE users
+          SET account_status = $2, account_status_reason = $3, account_status_changed_at = now()
+        WHERE id = $1
+        RETURNING id, email, phone, full_name, role, account_status, account_status_reason, account_status_changed_at`,
+      [userId, status, reason]);
+    return updated.rows[0];
+  });
+}
+
+adminRouter.post('/users/:id/suspend', ah(async (req, res) => {
+  const id = uuidParam(req, 'id');
+  const body = z.object({ reason: z.string().trim().min(5).max(500) }).parse(req.body);
+  const user = await changeAccountStatus(id, req.user!.id, 'suspended', body.reason);
+  res.json({ user: toCamel(user) });
+}));
+
+adminRouter.post('/users/:id/disable', ah(async (req, res) => {
+  const id = uuidParam(req, 'id');
+  const body = z.object({ reason: z.string().trim().min(5).max(500) }).parse(req.body);
+  const user = await changeAccountStatus(id, req.user!.id, 'disabled', body.reason);
+  res.json({ user: toCamel(user) });
+}));
+
+adminRouter.post('/users/:id/reactivate', ah(async (req, res) => {
+  const id = uuidParam(req, 'id');
+  const user = await changeAccountStatus(id, req.user!.id, 'active', null);
+  res.json({ user: toCamel(user) });
+}));
+
 // ---------- KYC ----------
 adminRouter.get('/kyc', ah(async (req, res) => {
   const status = z.enum(['pending', 'approved', 'rejected']).default('pending').parse(req.query.status);
