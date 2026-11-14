@@ -12,7 +12,6 @@ export type PublicSection = 'home' | 'candidates' | 'ranking' | 'rules' | 'about
 
 export default function ContestView({ contest, candidates, packs, base, focusNumber, section = 'home' }: ContestPage & { base: string; focusNumber?: number; section?: PublicSection }) {
   const { lang, setLang, t, err } = useLang(contest.defaultLocale);
-  const [tab, setTab] = useState<'candidates' | 'results'>('candidates');
   const [sheet, setSheet] = useState(false);
   const [now, setNow] = useState<number | null>(null);
   const [origin, setOrigin] = useState('');
@@ -35,7 +34,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
   const logoKey = typeof contest.theme?.logoKey === 'string' ? contest.theme.logoKey : null;
   const logoUrl = logoKey ? mediaUrl(logoKey) : null;
   const site = (contest.siteContent ?? {}) as Record<string, string | null | undefined>;
-  const hasEditorial = Boolean(site.tagline || site.concept || site.objectives || site.eligibility || site.location || site.contactEmail || site.contactPhone || site.websiteUrl || site.instagramUrl || site.facebookUrl);
+  const hasEditorial = Boolean(contest.description || site.tagline || site.concept || site.objectives || site.eligibility || site.location || site.contactEmail || site.contactPhone || site.websiteUrl || site.instagramUrl || site.facebookUrl);
   const starts = contest.startsAt ? new Date(contest.startsAt).getTime() : null;
   const ends = contest.endsAt ? new Date(contest.endsAt).getTime() : null;
   const notStarted = now !== null && starts !== null && now < starts;
@@ -105,8 +104,8 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
               {site.tagline && <p className="experience-tagline">{site.tagline}</p>}
               {contest.description && <p className="experience-description">{contest.description}</p>}
               <div className="experience-hero-actions">
-                <a className="experience-primary-action" href="#participants" onClick={() => setTab('candidates')}>{canVote ? 'Découvrir les candidats' : 'Voir les candidats'} <span>↗</span></a>
-                <a className="experience-secondary-action" href="#classement" onClick={() => setTab('results')}>Voir le classement</a>
+                <a className="experience-primary-action" href={route('/candidats')}>{canVote ? 'Découvrir les candidats' : 'Voir les candidats'} <span>↗</span></a>
+                <a className="experience-secondary-action" href={route('/classement')}>Voir le classement</a>
               </div>
             </div>
             <aside className="experience-hero-panel">
