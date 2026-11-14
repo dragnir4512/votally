@@ -25,6 +25,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
   }, [focus]);
 
   const color = sanitizeColor(contest.theme?.primaryColor, '#D71920');
+  const template = contest.theme?.template === 'spotlight' || contest.theme?.template === 'minimal' ? contest.theme.template : 'editorial';
   const banner = mediaUrl(contest.bannerKey);
   const logoKey = typeof contest.theme?.logoKey === 'string' ? contest.theme.logoKey : null;
   const logoUrl = logoKey ? mediaUrl(logoKey) : null;
@@ -58,7 +59,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
   const pageStyle = { '--primary': color, '--contest-accent': color } as CSSProperties;
 
   return (
-    <div className="page public-contest" style={pageStyle}>
+    <div className={`page public-contest public-template-${template}`} style={pageStyle}>
       <header className="public-top">
         <div className="public-top-inner">
           <a className="public-identity" href={base || '/'} aria-label={contest.name}>
