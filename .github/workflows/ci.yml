@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - feature/votally-figma-redesign
-      - agent/votally-mini-sites-results
       - agent/votally-work
       - agent/votally-mini-sites-results
+      - agent/votally-public-sites-rebuild
   pull_request:
     branches:
       - main
       - feature/votally-figma-redesign
+      - agent/votally-work
 
 permissions:
   contents: read
