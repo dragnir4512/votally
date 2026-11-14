@@ -22,6 +22,22 @@ async function loadPublicContest(req: Request, slug: string) {
 
 const resultsVisible = (c: any) => c.results_display === 'realtime' || (c.results_display === 'on_close' && ['closed'].includes(c.status));
 
+/** La fenêtre de vote est contrôlée côté serveur : le compte à rebours du navigateur n'est jamais une autorisation. */
+function assertVotingWindow(c: any) {
+  if (c.status !== 'active') {
+    throw new HttpError(409, 'Ce concours n’accepte pas de votes actuellement', 'voting_not_active');
+  }
+  const now = Date.now();
+  const startsAt = c.starts_at ? new Date(c.starts_at).getTime() : null;
+  const endsAt = c.ends_at ? new Date(c.ends_at).getTime() : null;
+  if (startsAt !== null && Number.isFinite(startsAt) && now < startsAt) {
+    throw new HttpError(409, 'Les votes ne sont pas encore ouverts', 'voting_not_started');
+  }
+  if (endsAt !== null && Number.isFinite(endsAt) && now >= endsAt) {
+    throw new HttpError(409, 'La période de vote est clôturée', 'voting_closed');
+  }
+}
+
 // ---------- Page du concours ----------
 publicRouter.get('/contests/:slug', ah(async (req, res) => {
   const c = await loadPublicContest(req, req.params.slug as string);
@@ -70,7 +86,8 @@ publicRouter.post('/contests/:slug/votes/free', ah(async (req, res) => {
   const body = z.object({ phone: z.string(), choices: choicesSchema, locale: z.enum(['fr', 'en']).optional() }).parse(req.body);
   const phone = normalizePhone(body.phone);
   const c = await loadPublicContest(req, req.params.slug as string);
-  if (c.status !== 'active' || !['free', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes gratuits actuellement', 'free_votes_closed');
+  assertVotingWindow(c);
+  if (!['free', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes gratuits actuellement', 'free_votes_closed');
 
   assertChoiceCount(c, body.choices);
   const votes = body.choices.reduce((s, x) => s + x.quantity, 0);
@@ -121,7 +138,8 @@ const orderSchema = z.object({
 publicRouter.post('/contests/:slug/quote', ah(async (req, res) => {
   const body = orderSchema.parse(req.body);
   const c = await loadPublicContest(req, req.params.slug as string);
-  if (c.status !== 'active' || !['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
+  assertVotingWindow(c);
+  if (!['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
   assertChoiceCount(c, body.choices);
   const { votes, subtotal } = await priceFor(c, body);
   const fee = defaultPaymentProvider().estimateFee(subtotal);
@@ -132,7 +150,8 @@ publicRouter.post('/contests/:slug/orders', ah(async (req, res) => {
   const body = orderSchema.parse(req.body);
   const idem = req.header('idempotency-key')?.slice(0, 100) || null;
   const c = await loadPublicContest(req, req.params.slug as string);
-  if (c.status !== 'active' || !['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
+  assertVotingWindow(c);
+  if (!['paid', 'mixed'].includes(c.vote_type)) throw new HttpError(409, 'Ce concours n\'accepte pas de votes payants actuellement', 'paid_votes_closed');
   if (!body.phone) throw new HttpError(400, 'Numéro Mobile Money requis', 'phone_required');
  const phone = normalizePhone(body.phone);
 const provider = defaultPaymentProvider();
