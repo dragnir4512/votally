@@ -8,13 +8,17 @@ import ShareBar from './ShareBar';
 import VoteSheet from './VoteSheet';
 import { useLang } from './useLang';
 
-export default function ContestView({ contest, candidates, packs, base, focusNumber }: ContestPage & { base: string; focusNumber?: number }) {
+export type PublicSection = 'home' | 'candidates' | 'ranking' | 'rules' | 'about';
+
+export default function ContestView({ contest, candidates, packs, base, focusNumber, section = 'home' }: ContestPage & { base: string; focusNumber?: number; section?: PublicSection }) {
   const { lang, setLang, t, err } = useLang(contest.defaultLocale);
   const [tab, setTab] = useState<'candidates' | 'results'>('candidates');
   const [sheet, setSheet] = useState(false);
   const [now, setNow] = useState<number | null>(null);
   const [origin, setOrigin] = useState('');
   const [search, setSearch] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const route = (path: string) => `${base}${path}` || '/';
   const focus = candidates.find((c) => c.number === focusNumber);
   const [selected, setSelected] = useState<string[]>(focus ? [focus.id] : []);
 
@@ -70,10 +74,15 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
             {logoUrl ? <img src={logoUrl} alt="" /> : <span className="experience-brand-mark">{(contest.organizerName || contest.name).trim().charAt(0).toUpperCase()}</span>}
             <span>{contest.organizerName || contest.name}</span>
           </a>
-          <nav className="experience-links" aria-label="Navigation du concours">
-            <a href="#participants" onClick={() => setTab('candidates')}>Candidats</a>
-            <a href="#classement" onClick={() => setTab('results')}>Classement</a>
-            {hasEditorial && <a href="#informations">Le concours</a>}
+          <button className="experience-menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="experience-site-menu" onClick={() => setMenuOpen((v) => !v)}>
+            <span>{menuOpen ? 'Fermer' : 'Menu'}</span><i aria-hidden="true">{menuOpen ? '×' : '☰'}</i>
+          </button>
+          <nav id="experience-site-menu" className={`experience-links ${menuOpen ? 'is-open' : ''}`} aria-label="Navigation du concours">
+            <a aria-current={section === 'home' ? 'page' : undefined} href={route('')}>Accueil</a>
+            <a aria-current={section === 'candidates' ? 'page' : undefined} href={route('/candidats')}>Candidats</a>
+            <a aria-current={section === 'ranking' ? 'page' : undefined} href={route('/classement')}>Classement</a>
+            <a aria-current={section === 'rules' ? 'page' : undefined} href={route('/reglement')}>Règlement</a>
+            <a aria-current={section === 'about' ? 'page' : undefined} href={route('/a-propos')}>À propos</a>
           </nav>
           <div className="experience-nav-actions">
             <div className="lang" role="group" aria-label="Language">
@@ -86,7 +95,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
       </header>
 
       <main>
-        <section className={`experience-hero${banner ? ' has-image' : ''}`} style={banner ? { backgroundImage: `linear-gradient(100deg, rgba(8,13,22,.94) 0%, rgba(8,13,22,.76) 48%, rgba(8,13,22,.18) 100%), url("${banner}")` } : undefined}>
+        {section === 'home' && <section className={`experience-hero${banner ? ' has-image' : ''}`} style={banner ? { backgroundImage: `linear-gradient(100deg, rgba(8,13,22,.94) 0%, rgba(8,13,22,.76) 48%, rgba(8,13,22,.18) 100%), url("${banner}")` } : undefined}>
           <div className="experience-hero-orb experience-orb-one" aria-hidden="true" />
           <div className="experience-hero-orb experience-orb-two" aria-hidden="true" />
           <div className="experience-hero-inner">
@@ -118,15 +127,15 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
             </aside>
           </div>
           <div className="experience-hero-bottom"><span>VOTALLY / PUBLIC CONTEST</span><span>SCROLL POUR EXPLORER ↓</span></div>
-        </section>
+        </section>}
 
-        <section className="experience-proof-strip" aria-label="Informations du concours">
+        {section === 'home' && <section className="experience-proof-strip" aria-label="Informations du concours">
           <div><span>01</span><strong>Une compétition</strong><small>Des talents à découvrir</small></div>
           <div><span>02</span><strong>Un public engagé</strong><small>Votre voix compte</small></div>
           <div><span>03</span><strong>Un classement</strong><small>Mis à jour selon les votes validés</small></div>
-        </section>
+        </section>}
 
-        {hasEditorial && <section className="experience-about" id="informations">
+        {(section === 'home' || section === 'about') && hasEditorial && <section className="experience-about" id="informations">
           <div className="experience-section-intro"><span className="experience-kicker">L'UNIVERS DU CONCOURS</span><h2>Une scène, des talents,<br /><em>une histoire à écrire.</em></h2></div>
           <div className="experience-about-grid">
             {(site.concept || contest.description) && <article className="experience-about-card experience-about-feature"><span>01 / LE CONCEPT</span><h3>À propos du concours</h3><p>{site.concept || contest.description}</p></article>}
@@ -136,34 +145,30 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
           </div>
         </section>}
 
-        <section className="experience-contest-area" id="participants">
+        {(section === 'candidates' || section === 'ranking' || section === 'rules') && <section className="experience-contest-area" id="participants">
           <div className="experience-section-heading">
-            <div><span className="experience-kicker">LES VISAGES DU CONCOURS</span><h2>Découvrez les <em>candidats.</em></h2><p>Explorez les profils, choisissez vos favoris et soutenez-les.</p></div>
+            <div><span className="experience-kicker">{section === 'ranking' ? 'LES RÉSULTATS DU CONCOURS' : section === 'rules' ? 'INFORMATIONS OFFICIELLES' : 'LES VISAGES DU CONCOURS'}</span><h2>{section === 'ranking' ? <>Le <em>classement.</em></> : section === 'rules' ? <>Le <em>règlement.</em></> : <>Découvrez les <em>candidats.</em></>}</h2><p>{section === 'ranking' ? 'Consultez les positions calculées à partir des votes validés.' : section === 'rules' ? 'Les conditions et règles applicables à cette compétition.' : 'Explorez les profils, choisissez vos favoris et soutenez-les.'}</p></div>
             <div className="experience-section-index"><strong>{String(candidates.length).padStart(2, '0')}</strong><span>PARTICIPANTS</span></div>
           </div>
-          {contest.rules && <details className="experience-rules"><summary>Consulter le règlement <span>＋</span></summary><p>{contest.rules}</p></details>}
-          <div className="experience-tools">
-            <div className="experience-tabs" role="tablist" aria-label="Contenu du concours">
-              <button role="tab" aria-selected={tab === 'candidates'} className={tab === 'candidates' ? 'is-active' : ''} onClick={() => setTab('candidates')} type="button">01 <span>Candidats</span></button>
-              <button id="classement" role="tab" aria-selected={tab === 'results'} className={tab === 'results' ? 'is-active' : ''} onClick={() => setTab('results')} type="button">02 <span>Classement</span></button>
-            </div>
-            {tab === 'candidates' ? <label className="experience-search"><span aria-hidden>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un candidat ou un numéro…" aria-label="Rechercher un candidat" />{search && <button type="button" onClick={() => setSearch('')} aria-label="Effacer la recherche">×</button>}</label>
+          {section === 'rules' && (contest.rules ? <details className="experience-rules" open><summary>Règlement officiel <span>−</span></summary><p>{contest.rules}</p></details> : <div className="experience-no-match"><strong>Règlement non publié</strong><p>L’organisateur n’a pas encore ajouté le règlement de ce concours.</p></div>)}
+          {section !== 'rules' && <div className="experience-tools">
+            {section === 'candidates' ? <label className="experience-search"><span aria-hidden>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un candidat ou un numéro…" aria-label="Rechercher un candidat" />{search && <button type="button" onClick={() => setSearch('')} aria-label="Effacer la recherche">×</button>}</label>
               : <span className="experience-results-note">Résultats selon les votes validés</span>}
-          </div>
+          </div>}
 
-          {tab === 'candidates' ? <>
+          {section === 'candidates' ? <>
             {canVote && contest.maxChoicesPerVote > 1 && <p className="muted small experience-select-hint">{t('selectHint', { n: contest.maxChoicesPerVote })}</p>}
             {filteredCandidates.length ? <div className="grid experience-candidate-grid">
               {filteredCandidates.map((c) => <CandidateCard key={c.id} c={c} t={t} canVote={canVote} selected={selected.includes(c.id)} highlight={c.number === focusNumber} onToggle={() => toggle(c.id)} href={`${base}/c/${c.number}`} />)}
             </div> : <div className="experience-no-match"><strong>Aucun candidat trouvé</strong><p>Essayez un autre nom ou numéro.</p></div>}
-          </> : <section className="experience-results"><div className="experience-results-heading"><div><span className="experience-kicker">LIVE LEADERBOARD</span><h3>Le classement</h3></div><span>Les positions évoluent avec les votes confirmés</span></div>
+          </> : section === 'ranking' ? <section className="experience-results"><div className="experience-results-heading"><div><span className="experience-kicker">LIVE LEADERBOARD</span><h3>Le classement</h3></div><span>Les positions évoluent avec les votes confirmés</span></div>
             <Results slug={contest.slug} realtime={contest.resultsDisplay === 'realtime' && !over} t={t} err={err} />
-          </section>}
-        </section>
+          </section> : null}
+        </section>}
 
-        <section className="experience-share-band" id="partager"><div><span className="experience-kicker">FAITES PASSER LE MOT</span><h2>Votre soutien peut<br /><em>tout changer.</em></h2><p>Partagez le concours et invitez votre communauté à découvrir les candidats.</p></div>
+        {section === 'home' && <section className="experience-share-band" id="partager"><div><span className="experience-kicker">FAITES PASSER LE MOT</span><h2>Votre soutien peut<br /><em>tout changer.</em></h2><p>Partagez le concours et invitez votre communauté à découvrir les candidats.</p></div>
           {pageUrl && <ShareBar url={pageUrl} text={shareText} t={t} />}
-        </section>
+        </section>}
       </main>
 
       <footer className="experience-footer"><div className="experience-footer-main"><a className="experience-brand" href={base || '/'}><span className="experience-brand-mark">V</span><span>VOTALLY</span></a><span>{contest.name}</span><span>{contest.organizerName ? `Organisé par ${contest.organizerName}` : 'Concours en ligne'}</span></div><div className="experience-footer-bottom"><span>© {new Date().getFullYear()} · Tous droits réservés</span><span>Une expérience propulsée par VOTALLY</span></div></footer>
