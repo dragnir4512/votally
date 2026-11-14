@@ -116,7 +116,17 @@ export default function ContestForm({ initial = emptyForm, locked, submitLabel, 
           <option value="public">Public</option><option value="private">Privé (mot de passe)</option></select></L>
         {v.visibility === 'private' && <L label="Mot de passe" hint={hasExistingPassword ? 'Laisser vide pour conserver le mot de passe actuel.' : 'Obligatoire pour protéger un concours privé.'}><input className="input" type="password" disabled={!isOwner} autoComplete="new-password" minLength={4} maxLength={100} required={!hasExistingPassword} value={v.accessPassword} onChange={(e) => set('accessPassword', e.target.value)} /></L>}
       </div>
-      <L label="Couleur principale"><input className="color" type="color" value={v.primaryColor} onChange={(e) => set('primaryColor', e.target.value)} /></L>
+      <section className="form-section" aria-labelledby="site-template-heading">
+        <div className="form-section-heading"><h2 id="site-template-heading">Présentation du mini-site</h2><p>Choisissez une composition adaptée à l'identité de votre compétition. Les informations et les règles de vote restent les mêmes.</p></div>
+        <L label="Modèle visuel">
+          <select className="input" value={v.template} onChange={(e) => set('template', e.target.value as FormValues['template'])}>
+            <option value="editorial">Éditorial — présentation complète</option>
+            <option value="spotlight">Spotlight — visuel et candidats au premier plan</option>
+            <option value="minimal">Minimal — design épuré et direct</option>
+          </select>
+        </L>
+        <L label="Couleur principale"><input className="color" type="color" value={v.primaryColor} onChange={(e) => set('primaryColor', e.target.value)} /></L>
+      </section>
 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="actions">
