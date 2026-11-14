@@ -88,7 +88,7 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
               <button type="button" className={lang === 'fr' ? 'on' : ''} onClick={() => setLang('fr')}>FR</button>
               <button type="button" className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>EN</button>
             </div>
-            <a className="experience-nav-share" href="#partager">{t('share')}</a>
+            <a className="experience-nav-share" href={route('/#partager')}>{t('share')}</a>
           </div>
         </div>
       </header>
