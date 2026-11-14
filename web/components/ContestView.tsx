@@ -134,6 +134,10 @@ export default function ContestView({ contest, candidates, packs, base, focusNum
           <div><span>03</span><strong>Un classement</strong><small>Mis à jour selon les votes validés</small></div>
         </section>}
 
+        {section === 'about' && !hasEditorial && <section className="experience-about" id="informations">
+          <div className="experience-section-intro"><span className="experience-kicker">À PROPOS</span><h2>{contest.name}</h2></div>
+          <div className="experience-about-grid"><article className="experience-about-card experience-about-feature"><span>VOTALLY / CONCOURS</span><h3>{contest.organizerName || 'Organisateur du concours'}</h3><p>Les informations détaillées de présentation et de contact seront publiées ici par l’organisateur.</p></article></div>
+        </section>}
         {(section === 'home' || section === 'about') && hasEditorial && <section className="experience-about" id="informations">
           <div className="experience-section-intro"><span className="experience-kicker">L'UNIVERS DU CONCOURS</span><h2>Une scène, des talents,<br /><em>une histoire à écrire.</em></h2></div>
           <div className="experience-about-grid">
