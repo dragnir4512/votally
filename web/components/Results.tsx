@@ -54,7 +54,7 @@ export default function Results({ slug, realtime, t, err }: { slug: string; real
         <span className={`results-state ${contestStatus === 'closed' ? 'is-final' : 'is-live'}`}><i />{contestStatus === 'closed' ? 'Résultats définitifs' : 'Classement provisoire'}</span>
       </div>
       <div className="results-podium" aria-label="Podium des trois premiers candidats">
-        {([2, 1, 3] as const).map((rank) => {
+        {([1, 2, 3] as const).map((rank) => {
           const row = podium.find((candidate) => candidate.rank === rank);
           return row ? (
             <article className={`results-podium-card rank-${rank}`} key={row.candidateId}>

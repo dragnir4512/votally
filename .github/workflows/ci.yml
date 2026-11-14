@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - feature/votally-figma-redesign
+      - agent/votally-mini-sites-results
       - agent/votally-work
+      - agent/votally-mini-sites-results
   pull_request:
     branches:
       - main
