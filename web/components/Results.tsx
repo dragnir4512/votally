@@ -30,8 +30,10 @@ export default function Results({ slug, realtime, t, err }: { slug: string; real
       }
     };
     load();
-    const id = realtime ? window.setInterval(load, 15_000) : undefined;
-    return () => { alive = false; if (id) window.clearInterval(id); };
+    // Poll even when results are hidden until close: on_close must become visible
+    // without requiring the visitor to reload the page. The API remains the authority.
+    const id = window.setInterval(load, 15_000);
+    return () => { alive = false; window.clearInterval(id); };
   }, [slug, realtime]);
 
   if (hidden) return <p className="muted center pad">{t('resultsHidden')}</p>;
