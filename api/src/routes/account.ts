@@ -164,7 +164,7 @@ accountRouter.get('/payouts/quote', ah(async (req, res) => {
 
 // Code de confirmation lié à un retrait précis (montant, frais, destination et méthode).
 accountRouter.post('/payouts/otp', ah(async (req, res) => {
-  const b = z.object({ amountXaf: z.number().int().min(1), channel: z.enum(['email', 'sms']) }).strict().parse(req.body);
+  const b = z.object({ amountXaf: z.number().int().min(1).max(100_000_000), channel: z.enum(['email', 'sms']) }).strict().parse(req.body);
   const k = await approvedKyc(req.user!.id);
   const u = (await q('SELECT email, phone, email_verified_at, phone_verified_at FROM users WHERE id = $1', [req.user!.id])).rows[0];
   const target = b.channel === 'email' ? u?.email : u?.phone;
