@@ -44,7 +44,7 @@ const kycPublic = (r: any) => r && toCamel({
   status: r.status, rejection_reason: r.rejection_reason, submitted_at: r.submitted_at, reviewed_at: r.reviewed_at });
 
 // ---------- Coordonnées secondaires (email / téléphone) ----------
-function maskContactPhone(phone: string) { return phone.replace(/^(\\+\\d{3})\\d+(\\d{2})$/, '$1•••••••$2'); }
+function maskContactPhone(phone: string) { return phone.replace(/^(\+\d{3})\d+(\d{2})$/, '$1•••••••$2'); }
 accountRouter.get('/me/contacts', ah(async (req, res) => {
   const u = (await q('SELECT email, phone, email_verified_at, phone_verified_at FROM users WHERE id = $1 AND deleted_at IS NULL', [req.user!.id])).rows[0];
   if (!u) throw new HttpError(401, 'Session invalide', 'unauthenticated');
@@ -64,7 +64,7 @@ accountRouter.post('/me/contacts/challenge', ah(async (req, res) => {
   res.json({ message: 'Code envoyé', challenge: token, ...(isProd ? {} : { devCode: code }) });
 }));
 accountRouter.post('/me/contacts/verify', ah(async (req, res) => {
-  const b = z.object({ challenge: z.string(), code: z.string().regex(/^\\d{6}$/) }).strict().parse(req.body);
+  const b = z.object({ challenge: z.string(), code: z.string().regex(/^\d{6}$/) }).strict().parse(req.body);
   let p: jwt.JwtPayload;
   try { p = jwt.verify(b.challenge, config.JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload; }
   catch { throw new HttpError(400, 'Demande de vérification expirée', 'contact_challenge_expired'); }
@@ -182,7 +182,7 @@ accountRouter.post('/payouts/otp', ah(async (req, res) => {
 }));
 
 accountRouter.post('/payouts', ah(async (req, res) => {
-  const b = z.object({ amountXaf: z.number().int().min(1), code: z.string().regex(/^\\d{6}$/), challenge: z.string() }).strict().parse(req.body);
+  const b = z.object({ amountXaf: z.number().int().min(1), code: z.string().regex(/^\d{6}$/), challenge: z.string() }).strict().parse(req.body);
   let p: jwt.JwtPayload;
   try { p = jwt.verify(b.challenge, config.JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload; }
   catch { throw new HttpError(400, 'Demande de retrait expirée. Recommence.', 'payout_challenge_expired'); }
