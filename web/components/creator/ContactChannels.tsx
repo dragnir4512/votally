@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../../../lib/client';
+import { api, ApiError } from '../../lib/client';
 
 type Contacts = { email: string | null; emailVerified: boolean; phone: string | null; phoneVerified: boolean };
 export default function ContactChannels() {
