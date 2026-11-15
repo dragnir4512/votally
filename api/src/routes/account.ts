@@ -57,7 +57,7 @@ accountRouter.post('/me/contacts/challenge', ah(async (req, res) => {
   const duplicate = (await q(`SELECT id FROM users WHERE ${col} = $1 AND id <> $2 AND deleted_at IS NULL`, [target, req.user!.id])).rows[0];
   if (duplicate) throw new HttpError(409, 'Cette coordonnée est déjà utilisée par un autre compte', 'contact_in_use');
   const token = jwt.sign({ sub: req.user!.id, purpose: 'contact', channel: b.channel, target }, config.JWT_SECRET, { algorithm: 'HS256', expiresIn: '10m' });
-  const code = await withTx(null, (c) => issueOtp(c, 'signup', b.channel, target, req.ip));
+  const code = await withTx(null, (c) => issueOtp(c, 'contact', b.channel, target, req.ip));
   const message = `Votre code VOTALLY est : ${code}. Il expire dans 10 minutes. Ne le communiquez à personne.`;
   if (b.channel === 'email') await email.send({ to: target, subject: 'VOTALLY — Vérification du contact', text: message });
   else await sms.send(target, message);
@@ -71,7 +71,7 @@ accountRouter.post('/me/contacts/verify', ah(async (req, res) => {
   if (p.purpose !== 'contact' || p.sub !== req.user!.id || !['email', 'sms'].includes(String(p.channel)) || typeof p.target !== 'string')
     throw new HttpError(400, 'Demande de vérification invalide', 'contact_challenge_invalid');
   const channel = p.channel as 'email' | 'sms', target = p.target;
-  if (!(await consumeOtp('signup', target, b.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
+  if (!(await consumeOtp('contact', target, b.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   const col = channel === 'email' ? 'email' : 'phone', verifiedCol = channel === 'email' ? 'email_verified_at' : 'phone_verified_at';
   const duplicate = (await q(`SELECT id FROM users WHERE ${col} = $1 AND id <> $2 AND deleted_at IS NULL`, [target, req.user!.id])).rows[0];
   if (duplicate) throw new HttpError(409, 'Cette coordonnée est déjà utilisée par un autre compte', 'contact_in_use');
