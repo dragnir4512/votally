@@ -12,7 +12,7 @@ class SmsProProvider implements SmsProvider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12_000);
     try {
-      const response = await fetch(`${config.SMSPRO_API_BASE_URL.replace(/\\/$/, '')}/api/v1/messages`, {
+      const response = await fetch(`${config.SMSPRO_API_BASE_URL.replace(/\/$/, '')}/api/v1/messages`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${config.SMSPRO_API_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ to, message, from: config.SMSPRO_SENDER_ID }),
