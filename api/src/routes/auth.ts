@@ -104,7 +104,7 @@ authRouter.post('/login', ah(async (req, res) => {
   if (user.account_status !== 'active') throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
   const methods = [
     ...(user.email && user.email_verified_at ? [{ channel: 'email', masked: user.email.replace(/^(.).+(@.*)$/, '$1•••$2') }] : []),
-    ...(user.phone && user.phone_verified_at ? [{ channel: 'sms', masked: user.phone.replace(/^(\\+\\d{3})\\d+(\\d{2})$/, '$1•••••••$2') }] : []),
+    ...(user.phone && user.phone_verified_at ? [{ channel: 'sms', masked: user.phone.replace(/^(\+\d{3})\d+(\d{2})$/, '$1•••••••$2') }] : []),
   ];
   if (!methods.length) throw new HttpError(403, 'Compte non vérifié : termine ton inscription avec le code reçu', 'unverified');
   const challenge = jwt.sign({ sub: user.id, purpose: 'login' }, config.JWT_SECRET, { algorithm: 'HS256', expiresIn: '5m' });
@@ -128,7 +128,7 @@ authRouter.post('/login/send-code', ah(async (req, res) => {
 }));
 
 authRouter.post('/login/verify', ah(async (req, res) => {
-  const body = z.object({ challenge: z.string(), channel: z.enum(['email', 'sms']), code: z.string().regex(/^\\d{6}$/) }).parse(req.body);
+  const body = z.object({ challenge: z.string(), channel: z.enum(['email', 'sms']), code: z.string().regex(/^\d{6}$/) }).parse(req.body);
   let payload: jwt.JwtPayload;
   try { payload = jwt.verify(body.challenge, config.JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload; }
   catch { throw new HttpError(401, 'Étape de connexion expirée. Recommence.', 'login_challenge_expired'); }
@@ -145,7 +145,7 @@ authRouter.post('/login/verify', ah(async (req, res) => {
 
 authRouter.post('/password/forgot', ah(async (req, res) => {
   const body = z.object({ email: z.string().trim().email().transform((v) => v.toLowerCase()) }).strict().parse(req.body);
-  const emailAddress = body.email, phone = undefined;
+  const emailAddress = body.email;
   const channel = 'email' as const, target = emailAddress;
   const user = (await q('SELECT id, email_verified_at AS verified, account_status FROM users WHERE email = $1 AND deleted_at IS NULL', [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') return res.json({ message: genericRecoveryMessage });
@@ -158,7 +158,7 @@ authRouter.post('/password/forgot', ah(async (req, res) => {
 }));
 
 authRouter.post('/password/reset', ah(async (req, res) => {
-  const body = identifier.safeExtend({ code: z.string().regex(/^\d{6}$/), newPassword: password }).parse(req.body);
+  const body = z.object({ email: z.string().trim().email().transform((v) => v.toLowerCase()), code: z.string().regex(/^\d{6}$/), newPassword: password }).strict().parse(req.body);
   const emailAddress = body.email, target = emailAddress;
   const user = (await q('SELECT id, account_status, email_verified_at AS verified FROM users WHERE email = $1 AND deleted_at IS NULL', [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
