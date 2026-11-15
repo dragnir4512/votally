@@ -19,8 +19,7 @@ class SmsProProvider implements SmsProvider {
         signal: controller.signal,
       });
       if (!response.ok) {
-        const detail = await response.text().catch(() => '');
-        console.error('[SMSPRO] delivery request rejected', response.status, detail.slice(0, 300));
+        console.error('[SMSPRO] delivery request rejected', response.status);
         throw new HttpError(503, response.status === 402 ? 'Solde SMS insuffisant chez le fournisseur' : 'Impossible d’envoyer le SMS pour le moment', response.status === 402 ? 'sms_balance_insufficient' : 'sms_delivery_failed');
       }
     } catch (error) {
