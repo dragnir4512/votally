@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { ah, HttpError, toCamel, uuidParam } from '../http.js';
 import { q, withTx } from '../db.js';
@@ -20,10 +21,10 @@ const publicUser = (u: any) => toCamel({
   kyc_status: u.kyc_status, account_status: u.account_status, account_status_reason: u.account_status_reason,
   email_verified_at: u.email_verified_at, phone_verified_at: u.phone_verified_at });
 
-async function deliverCode(channel: 'email' | 'sms', target: string, code: string, purpose: 'signup' | 'password_reset') {
-  const label = purpose === 'signup' ? 'validation de votre compte' : 'réinitialisation de votre mot de passe';
+async function deliverCode(channel: 'email' | 'sms', target: string, code: string, purpose: 'signup' | 'password_reset' | 'login' | 'contact') {
+  const label = purpose === 'signup' ? 'validation de votre compte' : purpose === 'login' ? 'connexion à votre compte' : purpose === 'contact' ? 'vérification de ce contact' : 'réinitialisation de votre mot de passe';
   const message = `Votre code VOTALLY pour la ${label} est : ${code}. Il expire dans 10 minutes. Ne le communiquez à personne.`;
-  if (channel === 'email') await email.send({ to: target, subject: purpose === 'signup' ? 'VOTALLY — Vérification du compte' : 'VOTALLY — Réinitialisation du mot de passe', text: message });
+  if (channel === 'email') await email.send({ to: target, subject: purpose === 'signup' ? 'VOTALLY — Vérification du compte' : purpose === 'login' ? 'VOTALLY — Code de connexion' : purpose === 'contact' ? 'VOTALLY — Vérification du contact' : 'VOTALLY — Réinitialisation du mot de passe', text: message });
   else await sms.send(target, message);
 }
 const genericRecoveryMessage = 'Si un compte vérifié correspond à ces informations, un code vient d’être envoyé.';
@@ -100,26 +101,53 @@ authRouter.post('/login', ah(async (req, res) => {
     recordAuthEvent(null, 'system', 'auth.login_failed', targetHash);
     throw new HttpError(401, 'Identifiants incorrects', 'bad_credentials');
   }
-  if (user.account_status !== 'active') {
-    recordAuthEvent(null, 'system', 'auth.login_blocked', targetHash);
-    throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
-  }
-  if (!user.email_verified_at && !user.phone_verified_at) {
-    recordAuthEvent(null, 'system', 'auth.login_unverified', targetHash);
-    throw new HttpError(403, 'Compte non vérifié : saisis le code reçu', 'unverified');
-  }
+  if (user.account_status !== 'active') throw new HttpError(403, 'Ce compte est suspendu ou désactivé', 'account_unavailable');
+  const methods = [
+    ...(user.email && user.email_verified_at ? [{ channel: 'email', masked: user.email.replace(/^(.).+(@.*)$/, '$1•••$2') }] : []),
+    ...(user.phone && user.phone_verified_at ? [{ channel: 'sms', masked: user.phone.replace(/^(\\+\\d{3})\\d+(\\d{2})$/, '$1•••••••$2') }] : []),
+  ];
+  if (!methods.length) throw new HttpError(403, 'Compte non vérifié : termine ton inscription avec le code reçu', 'unverified');
+  const challenge = jwt.sign({ sub: user.id, purpose: 'login' }, config.JWT_SECRET, { algorithm: 'HS256', expiresIn: '5m' });
+  res.json({ requiresOtp: true, challenge, methods });
+}));
+
+authRouter.post('/login/send-code', ah(async (req, res) => {
+  const body = z.object({ challenge: z.string(), channel: z.enum(['email', 'sms']) }).parse(req.body);
+  let payload: jwt.JwtPayload;
+  try { payload = jwt.verify(body.challenge, config.JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload; }
+  catch { throw new HttpError(401, 'Étape de connexion expirée. Recommence.', 'login_challenge_expired'); }
+  if (payload.purpose !== 'login' || !payload.sub) throw new HttpError(401, 'Étape de connexion invalide', 'login_challenge_invalid');
+  const user = (await q('SELECT id, email, phone, email_verified_at, phone_verified_at, account_status FROM users WHERE id = $1 AND deleted_at IS NULL', [payload.sub])).rows[0];
+  if (!user || user.account_status !== 'active') throw new HttpError(401, 'Étape de connexion invalide', 'login_challenge_invalid');
+  const target = body.channel === 'email' ? user.email : user.phone;
+  const verified = body.channel === 'email' ? user.email_verified_at : user.phone_verified_at;
+  if (!target || !verified) throw new HttpError(400, 'Ce canal n’est pas vérifié sur ce compte', 'channel_not_verified');
+  const code = await withTx(null, (c) => issueOtp(c, 'login', body.channel, target, req.ip));
+  await deliverCode(body.channel, target, code, 'login');
+  res.json({ message: 'Code de connexion envoyé', ...(isProd ? {} : { devCode: code }) });
+}));
+
+authRouter.post('/login/verify', ah(async (req, res) => {
+  const body = z.object({ challenge: z.string(), channel: z.enum(['email', 'sms']), code: z.string().regex(/^\\d{6}$/) }).parse(req.body);
+  let payload: jwt.JwtPayload;
+  try { payload = jwt.verify(body.challenge, config.JWT_SECRET, { algorithms: ['HS256'] }) as jwt.JwtPayload; }
+  catch { throw new HttpError(401, 'Étape de connexion expirée. Recommence.', 'login_challenge_expired'); }
+  if (payload.purpose !== 'login' || !payload.sub) throw new HttpError(401, 'Étape de connexion invalide', 'login_challenge_invalid');
+  const user = (await q('SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL', [payload.sub])).rows[0];
+  if (!user || user.account_status !== 'active') throw new HttpError(401, 'Étape de connexion invalide', 'login_challenge_invalid');
+  const target = body.channel === 'email' ? user.email : user.phone;
+  const verified = body.channel === 'email' ? user.email_verified_at : user.phone_verified_at;
+  if (!target || !verified || !(await consumeOtp('login', target, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   await startSession(req, res, user);
   recordAuthEvent(user.id, 'user', 'auth.login_succeeded', user.id);
   res.json({ user: publicUser(user) });
 }));
 
 authRouter.post('/password/forgot', ah(async (req, res) => {
-  const body = identifier.parse(req.body);
-  const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
-  const channel = emailAddress ? 'email' : 'sms', target = emailAddress ?? phone!;
-  const user = (await q(emailAddress
-    ? 'SELECT id, email_verified_at AS verified, account_status FROM users WHERE email = $1 AND deleted_at IS NULL'
-    : 'SELECT id, phone_verified_at AS verified, account_status FROM users WHERE phone = $1 AND deleted_at IS NULL', [target])).rows[0];
+  const body = z.object({ email: z.string().trim().email().transform((v) => v.toLowerCase()) }).strict().parse(req.body);
+  const emailAddress = body.email, phone = undefined;
+  const channel = 'email' as const, target = emailAddress;
+  const user = (await q('SELECT id, email_verified_at AS verified, account_status FROM users WHERE email = $1 AND deleted_at IS NULL', [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') return res.json({ message: genericRecoveryMessage });
   let code: string;
   try { code = await withTx(null, (c) => issueOtp(c, 'password_reset', channel, target, req.ip)); }
@@ -131,11 +159,8 @@ authRouter.post('/password/forgot', ah(async (req, res) => {
 
 authRouter.post('/password/reset', ah(async (req, res) => {
   const body = identifier.safeExtend({ code: z.string().regex(/^\d{6}$/), newPassword: password }).parse(req.body);
-  const emailAddress = body.email?.toLowerCase(), phone = body.phone ? normalizePhone(body.phone) : undefined;
-  const target = emailAddress ?? phone!;
-  const user = (await q(emailAddress
-    ? 'SELECT id, account_status, email_verified_at AS verified FROM users WHERE email = $1 AND deleted_at IS NULL'
-    : 'SELECT id, account_status, phone_verified_at AS verified FROM users WHERE phone = $1 AND deleted_at IS NULL', [target])).rows[0];
+  const emailAddress = body.email, target = emailAddress;
+  const user = (await q('SELECT id, account_status, email_verified_at AS verified FROM users WHERE email = $1 AND deleted_at IS NULL', [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   if (!(await consumeOtp('password_reset', target, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   const hash = await bcrypt.hash(body.newPassword, config.BCRYPT_COST);
