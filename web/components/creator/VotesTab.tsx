@@ -4,10 +4,10 @@ import { api } from '../../lib/client';
 import { dateTime, xaf } from '../../lib/creator';
 
 interface Row { candidateId: string; number: number; name: string; validVotes: number; paidVotes: number; freeVotes: number; rank: number; isActive: boolean }
-interface Order { reference: string; kind: 'free' | 'paid'; status: string; votesCount: number; totalXaf: number; voterPhoneMasked: string | null; createdAt: string }
+interface Order { reference: string; kind: 'free' | 'paid'; status: string; votesCount: number; totalXaf?: number | null; voterPhoneMasked: string | null; createdAt: string }
 const STATUS: Record<string, string> = { pending: 'En attente', confirmed: 'Confirmé', failed: 'Échoué', expired: 'Expiré', cancelled: 'Annulé', refunded: 'Remboursé' };
 
-export default function VotesTab({ contestId, canSeeOrders }: { contestId: string; canSeeOrders: boolean }) {
+export default function VotesTab({ contestId, canSeeOrders, isOwner }: { contestId: string; canSeeOrders: boolean; isOwner: boolean }) {
   const [rows, setRows] = useState<Row[] | null>(null); const [orders, setOrders] = useState<Order[]>([]);
   const load = useCallback(async () => {
     const r = await api<{ results: Row[] }>(`/contests/${contestId}/results`).catch(() => null);
@@ -33,10 +33,10 @@ export default function VotesTab({ contestId, canSeeOrders }: { contestId: strin
         <>
           <div className="head-row"><h3>Dernières commandes</h3><button type="button" className="btn btn-ghost sm" onClick={load}>Actualiser</button></div>
           <div className="tablewrap"><table className="table">
-            <thead><tr><th>Date</th><th>Référence</th><th>Type</th><th>Votes</th><th>Montant</th><th>Statut</th><th>Téléphone</th></tr></thead>
-            <tbody>{orders.length === 0 && <tr><td colSpan={7} className="muted">Aucune commande.</td></tr>}
+            <thead><tr><th>Date</th><th>Référence</th><th>Type</th><th>Votes</th>{isOwner && <th>Montant</th>}<th>Statut</th><th>Téléphone</th></tr></thead>
+            <tbody>{orders.length === 0 && <tr><td colSpan={isOwner ? 7 : 6} className="muted">Aucune commande.</td></tr>}
               {orders.map((o) => (<tr key={o.reference}><td>{dateTime(o.createdAt)}</td><td><code>{o.reference}</code></td><td>{o.kind === 'paid' ? 'Payant' : 'Gratuit'}</td>
-                <td>{o.votesCount}</td><td>{o.kind === 'paid' ? xaf(o.totalXaf) : '—'}</td><td>{STATUS[o.status] ?? o.status}</td><td>{o.voterPhoneMasked ?? '—'}</td></tr>))}</tbody></table></div>
+                <td>{o.votesCount}</td>{isOwner && <td>{o.kind === 'paid' ? xaf(o.totalXaf ?? 0) : '—'}</td>}<td>{STATUS[o.status] ?? o.status}</td><td>{o.voterPhoneMasked ?? '—'}</td></tr>))}</tbody></table></div>
         </>
       )}
     </section>

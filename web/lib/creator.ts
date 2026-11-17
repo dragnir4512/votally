@@ -61,14 +61,14 @@ export interface FormValues {
   name: string; description: string; rules: string; organizerName: string; category: string;
   voteType: VoteType; votePriceXaf: string; maxChoicesPerVote: string; freeVotesPerPeriod: string; freeVotePeriodHours: string;
   startsAt: string; endsAt: string; visibility: 'public' | 'private'; accessPassword: string;
-  resultsDisplay: 'realtime' | 'on_close' | 'hidden'; defaultLocale: 'fr' | 'en'; primaryColor: string;
+  resultsDisplay: 'realtime' | 'on_close' | 'hidden'; defaultLocale: 'fr' | 'en'; primaryColor: string; template: 'editorial' | 'spotlight' | 'minimal';
   tagline: string; objectives: string; concept: string; location: string; eligibility: string; contactEmail: string; contactPhone: string; websiteUrl: string; instagramUrl: string; facebookUrl: string;
 }
 
 export const emptyForm: FormValues = {
   name: '', description: '', rules: '', organizerName: '', category: '', voteType: 'free', votePriceXaf: '100', maxChoicesPerVote: '1',
   freeVotesPerPeriod: '1', freeVotePeriodHours: '24', startsAt: '', endsAt: '', visibility: 'public', accessPassword: '',
-  resultsDisplay: 'realtime', defaultLocale: 'fr', primaryColor: '#D71920', tagline: '', objectives: '', concept: '', location: '', eligibility: '', contactEmail: '', contactPhone: '', websiteUrl: '', instagramUrl: '', facebookUrl: '',
+  resultsDisplay: 'realtime', defaultLocale: 'fr', primaryColor: '#D71920', template: 'editorial', tagline: '', objectives: '', concept: '', location: '', eligibility: '', contactEmail: '', contactPhone: '', websiteUrl: '', instagramUrl: '', facebookUrl: '',
 };
 
 export function formFromContest(c: MyContest): FormValues {
@@ -78,6 +78,7 @@ export function formFromContest(c: MyContest): FormValues {
     freeVotePeriodHours: String(c.freeVotePeriodHours), startsAt: toInput(c.startsAt), endsAt: toInput(c.endsAt), visibility: c.visibility,
     accessPassword: '', resultsDisplay: c.resultsDisplay, defaultLocale: c.defaultLocale,
     primaryColor: typeof c.theme?.primaryColor === 'string' ? (c.theme.primaryColor as string) : '#D71920',
+    template: c.theme?.template === 'spotlight' || c.theme?.template === 'minimal' ? c.theme.template : 'editorial',
     tagline: String(c.siteContent?.tagline ?? ''), objectives: String(c.siteContent?.objectives ?? ''), concept: String(c.siteContent?.concept ?? ''), location: String(c.siteContent?.location ?? ''), eligibility: String(c.siteContent?.eligibility ?? ''), contactEmail: String(c.siteContent?.contactEmail ?? ''), contactPhone: String(c.siteContent?.contactPhone ?? ''), websiteUrl: String(c.siteContent?.websiteUrl ?? ''), instagramUrl: String(c.siteContent?.instagramUrl ?? ''), facebookUrl: String(c.siteContent?.facebookUrl ?? ''),
   };
 }
@@ -90,7 +91,7 @@ export function buildPayload(v: FormValues, opts: { locked: boolean; existingThe
     freeVotesPerPeriod: Number(v.freeVotesPerPeriod) || 0, freeVotePeriodHours: Number(v.freeVotePeriodHours) || 24,
     startsAt: v.startsAt ? new Date(v.startsAt).toISOString() : null, endsAt: v.endsAt ? new Date(v.endsAt).toISOString() : null,
     visibility: v.visibility, resultsDisplay: v.resultsDisplay, defaultLocale: v.defaultLocale,
-    theme: { ...(opts.existingTheme ?? {}), primaryColor: v.primaryColor },
+    theme: { ...(opts.existingTheme ?? {}), primaryColor: v.primaryColor, template: v.template },
     siteContent: { tagline: nz(v.tagline), objectives: nz(v.objectives), concept: nz(v.concept), location: nz(v.location), eligibility: nz(v.eligibility), contactEmail: nz(v.contactEmail), contactPhone: nz(v.contactPhone), websiteUrl: nz(v.websiteUrl), instagramUrl: nz(v.instagramUrl), facebookUrl: nz(v.facebookUrl) },
   };
   if (v.visibility === 'public') body.accessPassword = null;

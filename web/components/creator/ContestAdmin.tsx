@@ -151,7 +151,7 @@ export default function ContestAdmin({ id }: { id: string }) {
       <div className="contest-workspace">
         <nav className="contest-sidebar" aria-label="Navigation du concours">
           <span className="contest-sidebar-label">GESTION DU CONCOURS</span>
-          {TABS.map((item) => <button key={item.key} type="button" className={tab === item.key ? 'active' : ''} onClick={() => setTab(item.key)} aria-current={tab === item.key ? 'page' : undefined}>
+          {TABS.filter((item) => item.key !== 'team' || role !== 'viewer').map((item) => <button key={item.key} type="button" className={tab === item.key ? 'active' : ''} onClick={() => setTab(item.key)} aria-current={tab === item.key ? 'page' : undefined}>
             <span className="contest-tab-icon">{item.icon}</span><span className="contest-tab-copy"><strong>{item.label}</strong><small>{item.hint}</small></span><span className="contest-tab-arrow">›</span>
           </button>)}
           <div className="contest-sidebar-foot"><span className="contest-sidebar-dot" /> Espace sécurisé</div>
@@ -160,9 +160,9 @@ export default function ContestAdmin({ id }: { id: string }) {
           <div className="contest-content-heading"><div><span className="contest-kicker">GESTION</span><h2>{currentTab.label}</h2><p>{currentTab.hint}</p></div><span className="contest-role-chip">{ROLE_LABEL[role]}</span></div>
           {tab === 'overview' && <Overview contest={contest} candidates={cands} role={role} reload={reload} goTo={setTab} />}
           {tab === 'candidates' && <CandidatesTab contest={contest} candidates={cands} canEdit={canEdit} reload={reload} />}
-          {tab === 'votes' && <VotesTab contestId={contest.id} canSeeOrders={canEdit} />}
+          {tab === 'votes' && <VotesTab contestId={contest.id} canSeeOrders={canEdit} isOwner={role === 'owner'} />}
           {tab === 'settings' && <SettingsTab contest={contest} canEdit={canEdit} isOwner={role === 'owner'} reload={reload} />}
-          {tab === 'team' && <TeamTab contestId={contest.id} isOwner={role === 'owner'} />}
+          {tab === 'team' && role !== 'viewer' && <TeamTab contestId={contest.id} isOwner={role === 'owner'} />}
         </main>
       </div>
     </div>

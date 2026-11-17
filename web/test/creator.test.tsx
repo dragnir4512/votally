@@ -49,7 +49,7 @@ describe('utilitaires organisateur', () => {
     expect(buildPayload({ ...emptyForm, name: 'Abc', voteType: 'free', votePriceXaf: '500' }, { locked: false })).toMatchObject({ voteType: 'free', votePriceXaf: 0, accessPassword: null });
     const priv = buildPayload({ ...emptyForm, name: 'Abc', visibility: 'private', accessPassword: '' }, { locked: false });
     expect(priv).not.toHaveProperty('accessPassword');                                   // vide = conserver l'actuel
-    expect(buildPayload({ ...emptyForm, name: 'Abc', primaryColor: '#abcdef' }, { locked: false, existingTheme: { banner: 'x' } }).theme).toEqual({ banner: 'x', primaryColor: '#abcdef' });
+    expect(buildPayload({ ...emptyForm, name: 'Abc', primaryColor: '#abcdef' }, { locked: false, existingTheme: { banner: 'x' } }).theme).toEqual({ banner: 'x', primaryColor: '#abcdef', template: 'editorial' });
   });
 
   it('dates : aller-retour datetime-local <-> ISO', () => {

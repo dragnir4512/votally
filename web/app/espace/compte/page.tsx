@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import KycForm from '../../../components/creator/KycForm';
 import PayoutPanel from '../../../components/creator/PayoutPanel';
+import ContactChannels from '../../../components/creator/ContactChannels';
 import { api } from '../../../lib/client';
 import { dateTime, type Kyc } from '../../../lib/creator';
 
@@ -25,6 +26,8 @@ export default function MonCompte() {
         </div>
         {kyc !== undefined && <span className={`account-status ${statusClass}`}><i />{status}</span>}
       </header>
+
+      <ContactChannels />
 
       {kyc === undefined && <div className="account-loading"><span className="organizer-spinner" />Chargement des informations du compte…</div>}
 

@@ -6,7 +6,7 @@ import type { T } from '../lib/i18n';
 import type { Candidate, ContestPublic, Lang, Pack, PayMethod } from '../lib/types';
 import ShareBar from './ShareBar';
 
-type Step = 'form' | 'code' | 'pending' | 'done' | 'failed';
+type Step = 'form' | 'pending' | 'done' | 'failed';
 interface Quote { votes: number; subtotalXaf: number; feeXaf: number; totalXaf: number }
 interface Order {
   reference: string;
@@ -26,8 +26,6 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
   const [step, setStep] = useState<Step>('form');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [devCode, setDevCode] = useState<string | null>(null);
   const [method, setMethod] = useState<PayMethod>('mtn_momo');
   const [qty, setQty] = useState<Record<string, number>>(() => Object.fromEntries(selected.map((c) => [c.id, 1])));
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -86,13 +84,9 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
 
   const guarded = async (fn: () => Promise<void>) => { setBusy(true); setError(null); try { await fn(); } catch (e) { fail(e); } finally { setBusy(false); } };
 
-  const sendCode = () => guarded(async () => {
-    const r = await api<{ devCode?: string }>(`/public/contests/${slug}/otp`, { body: { phone } });
-    setDevCode(r.devCode ?? null); setStep('code');
-  });
   const submitFree = () => guarded(async () => {
     const r = await api<{ reference: string }>(`/public/contests/${slug}/votes/free`,
-      { body: { phone, code, choices: selected.map((c) => ({ candidateId: c.id, quantity: 1 })), locale: lang } });
+      { body: { phone, choices: selected.map((c) => ({ candidateId: c.id, quantity: 1 })), locale: lang } });
     setReceipt(r.reference); setStep('done');
   });
   const submitPaid = () => guarded(async () => {
@@ -159,20 +153,6 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
               <button className="btn btn-outline block" type="button" disabled={busy} onClick={simulate}>{t('simulate')}</button>
             )}
             {error && <p className="error" role="alert">{error}</p>}
-          </div>
-        )}
-
-        {step === 'code' && (
-          <div>
-            <h2>{t('vote')}</h2>
-            <p className="muted">{t('codeSent', { phone })}</p>
-            {devCode && <p className="devhint">{t('devCode', { code: devCode })}</p>}
-            <label className="field"><span>{t('code')}</span>
-              <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} autoFocus
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="••••••" className="code" /></label>
-            {error && <p className="error" role="alert">{error}</p>}
-            <button className="btn btn-primary block" type="button" disabled={busy || code.length !== 6} onClick={submitFree}>{t('confirmVote')}</button>
-            <button className="btn btn-link block" type="button" onClick={() => { setStep('form'); setCode(''); setError(null); }}>{t('back')}</button>
           </div>
         )}
 
@@ -271,7 +251,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
             {error && <p className="error" role="alert">{error}</p>}
 
             {mode === 'free'
-              ? <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || !phone || freeTooMany} onClick={sendCode}>{t('sendCode')}</button>
+              ? <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || !phone || freeTooMany} onClick={submitFree}>{t('confirmVote')}</button>
               : <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || (needsPhone && !phone) || !quote} onClick={submitPaid}>
                   {quote ? t('pay', { amount: formatXaf(quote.totalXaf, lang) }) : t('computing')}</button>}
           </div>

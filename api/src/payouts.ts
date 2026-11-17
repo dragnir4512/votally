@@ -1,5 +1,6 @@
 import { q, withTx } from './db.js';
 import { defaultPayoutProvider } from './providers.js';
+import { isProd } from './config.js';
 
 /**
  * Envoie un retrait à l'agrégateur puis enregistre le résultat.
@@ -40,6 +41,7 @@ async function applyPayoutResult(id: string, providerName: string, r: { status: 
 
 /** Tâche de fond : règle les retraits restés en cours ou incertains. Idempotent. */
 export async function settlePayouts(olderThanSeconds = 30): Promise<{ checked: number; settled: number }> {
+  if (isProd) return { checked: 0, settled: 0 }; // Aucun fournisseur de décaissement réel n'est configuré.
   const provider = defaultPayoutProvider();
   const rows = (await q(
     `SELECT id, status FROM payouts WHERE status IN ('requested','processing') AND requested_at < now() - make_interval(secs => $1::int) ORDER BY requested_at LIMIT 50`,

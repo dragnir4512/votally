@@ -1,18 +1,68 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { config, isProd, isTest } from './config.js';
 import { notchPayProvider } from './providers/notchpay.js';
+import { HttpError } from './http.js';
 
 // ============ SMS ============
 export interface SmsProvider { send(to: string, message: string): Promise<void>; }
 
-/** Développement : écrit le SMS dans la console. À remplacer par un fournisseur couvrant MTN / Orange / Camtel / Nexttel. */
+/** SMSPro : API REST. Un HTTP 2xx signifie accepté par la passerelle, pas livré au téléphone. */
+class SmsProProvider implements SmsProvider {
+  async send(to: string, message: string): Promise<void> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch(`${config.SMSPRO_API_BASE_URL.replace(/\/$/, '')}/api/v1/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${config.SMSPRO_API_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ to, message, from: config.SMSPRO_SENDER_ID }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        console.error('[SMSPRO] delivery request rejected', response.status);
+        throw new HttpError(503, response.status === 402 ? 'Solde SMS insuffisant chez le fournisseur' : 'Impossible d’envoyer le SMS pour le moment', response.status === 402 ? 'sms_balance_insufficient' : 'sms_delivery_failed');
+      }
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+      console.error('[SMSPRO] network request failed', error instanceof Error ? error.name : 'unknown');
+      throw new HttpError(503, 'Service SMS temporairement indisponible', 'sms_provider_unavailable');
+    } finally { clearTimeout(timeout); }
+  }
+}
+
+/** Développement : simulation sans divulguer le code dans les journaux de test. */
 class ConsoleSms implements SmsProvider {
   async send(to: string, message: string) {
     if (isProd) throw new Error('Aucun fournisseur SMS réel n’est configuré : envoi désactivé en production.');
     if (!isTest) console.log(`[SMS → ${to}] ${message}`);
   }
 }
-export const sms: SmsProvider = new ConsoleSms();
+export const sms: SmsProvider = config.SMS_PROVIDER === 'smspro' ? new SmsProProvider() : new ConsoleSms();
+
+
+export interface EmailMessage { to: string; subject: string; text: string; }
+export const email = {
+  async send(message: EmailMessage): Promise<void> {
+    // Aucun appel réseau vers Resend pendant les tests.
+    if (isTest) return;
+
+    if (!config.RESEND_API_KEY || !config.EMAIL_FROM) {
+      if (isProd) throw new HttpError(503, 'Envoi des emails indisponible pour le moment', 'email_unavailable');
+      if (!isTest) console.log(`[EMAIL → ${message.to}] ${message.subject}\n${message.text}`);
+      return;
+    }
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: config.EMAIL_FROM, to: [message.to], subject: message.subject, text: message.text }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      console.error('[EMAIL] Resend error', response.status, detail.slice(0, 500));
+      throw new HttpError(503, 'Impossible d’envoyer l’email pour le moment', 'email_delivery_failed');
+    }
+  },
+};
 
 // ============ PAIEMENT ============
 export type PaymentMethod = 'mtn_momo' | 'orange_money' | 'card';
@@ -107,4 +157,13 @@ export const getPaymentProvider = (name: string) => providers[name];
 export const defaultPaymentProvider = () => providers[config.PAYMENT_PROVIDER]!;
 
 /** Fournisseur utilisé pour les retraits des créateurs. */
-export const defaultPayoutProvider = () => mockProvider;
+/** Aucun agrégateur de décaissement réel n'est intégré pour le moment.
+ * En production, on échoue volontairement : le simulateur ne doit jamais
+ * transformer un retrait en paiement comptabilisé.
+ */
+export const defaultPayoutProvider = () => {
+  if (isProd) {
+    throw new HttpError(503, 'Les retraits sont temporairement indisponibles : aucun fournisseur de décaissement réel n’est configuré.', 'payout_provider_unavailable');
+  }
+  return mockProvider;
+};

@@ -18,6 +18,7 @@ export default function Inscription() {
     const r = await api<{ devCode?: string }>('/auth/register', { body: { ...target, password: f.password, fullName: f.fullName.trim(), acceptTerms: f.accept } });
     setDevCode(r.devCode ?? null); setStep('code'); }); };
   const verify = (e: React.FormEvent) => { e.preventDefault(); run(async () => { await api('/auth/verify', { body: { ...target, code } }); router.replace('/espace'); }); };
+  const resend = () => run(async () => { const r = await api<{ devCode?: string; message: string }>('/auth/resend-code', { body: target }); setDevCode(r.devCode ?? null); });
 
   return (
     <main className="authbox auth-page auth-register">
@@ -30,8 +31,8 @@ export default function Inscription() {
           <label className="field"><span>Nom complet</span><input className="input" required minLength={2} autoComplete="name" value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></label>
           <label className="field"><span>{by === 'email' ? 'Email' : 'Téléphone (Mobile Money de préférence)'}</span>
             <input className="input" required type={by === 'email' ? 'email' : 'tel'} autoComplete={by === 'email' ? 'email' : 'tel'} value={f.contact} onChange={(e) => setF({ ...f, contact: e.target.value })} placeholder={by === 'email' ? 'vous@exemple.com' : '690000000'} /></label>
-          <label className="field"><span>Mot de passe</span><input className="input" required type="password" minLength={8} autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
-            <small className="muted">8 caractères minimum, avec une majuscule et un chiffre.</small></label>
+          <label className="field"><span>Mot de passe</span><input className="input" required type="password" minLength={10} autoComplete="new-password" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+            <small className="muted">10 caractères minimum, avec une minuscule, une majuscule et un chiffre.</small></label>
           <label className="check-line"><input type="checkbox" checked={f.accept} onChange={(e) => setF({ ...f, accept: e.target.checked })} /> J&apos;accepte les conditions d&apos;utilisation et la politique de confidentialité.</label>
           {error && <p className="error" role="alert">{error}</p>}
           <button className="btn btn-primary block" type="submit" disabled={busy || !f.accept}>Recevoir mon code</button>
@@ -45,6 +46,7 @@ export default function Inscription() {
           <input className="input code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} aria-label="Code de vérification" />
           {error && <p className="error" role="alert">{error}</p>}
           <button className="btn btn-primary block" type="submit" disabled={busy || code.length !== 6}>Valider</button>
+          <button className="btn btn-link block" type="button" disabled={busy} onClick={resend}>Renvoyer le code</button>
           <button className="btn btn-link block" type="button" onClick={() => { setStep('form'); setCode(''); setError(null); }}>Modifier mes informations</button>
         </form>
       )}

@@ -24,8 +24,14 @@ export async function checkQuota(userId: string, purposes: string[], max: number
 export async function storeFile(opts: { userId: string; data: Buffer; ext: string; contentType: string; purpose: string; visibility: 'public' | 'private' }): Promise<string> {
   const key = `${randomBytes(16).toString('hex')}.${opts.ext}`;
   await storage.put(key, opts.data);
-  await q('INSERT INTO uploads (key, owner_user_id, visibility, purpose, content_type, size_bytes) VALUES ($1,$2,$3,$4,$5,$6)',
-    [key, opts.userId, opts.visibility, opts.purpose, opts.contentType, opts.data.length]);
+  try {
+    await q('INSERT INTO uploads (key, owner_user_id, visibility, purpose, content_type, size_bytes) VALUES ($1,$2,$3,$4,$5,$6)',
+      [key, opts.userId, opts.visibility, opts.purpose, opts.contentType, opts.data.length]);
+  } catch (error) {
+    // Évite de laisser un objet orphelin si l'enregistrement des métadonnées échoue.
+    await storage.delete(key).catch(() => undefined);
+    throw error;
+  }
   return key;
 }
 

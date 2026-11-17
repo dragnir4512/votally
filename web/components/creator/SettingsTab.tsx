@@ -54,7 +54,7 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
         {error && <p className="error" role="alert">{error}</p>}
       </div>
       <div className="panel">
-        <ContestForm initial={formFromContest(contest)} locked={contest.status !== 'draft'} existingTheme={contest.theme} hasExistingPassword={contest.hasPassword} submitLabel="Enregistrer"
+        <ContestForm initial={formFromContest(contest)} locked={contest.status !== 'draft'} existingTheme={contest.theme} hasExistingPassword={contest.hasPassword} isOwner={isOwner} submitLabel="Enregistrer"
           onSubmit={async (body) => { await api(`/contests/${contest.id}`, { method: 'PATCH', body }); await reload(); }} />
       </div>
 
@@ -63,12 +63,12 @@ export default function SettingsTab({ contest, canEdit, isOwner, reload }: { con
           <h3>Packs de votes</h3>
           <p className="muted small">Prix unitaire : {xaf(contest.votePriceXaf)}. Un pack offre une remise (ex. 10 votes pour 900 FCFA).</p>
           <ul className="plain">{packs.length === 0 && <li className="muted">Aucun pack.</li>}
-            {packs.map((p) => <li key={p.id}><strong>{p.votesCount} votes</strong> — {xaf(p.priceXaf)} <button type="button" className="btn btn-ghost sm danger" onClick={() => removePack(p)}>Retirer</button></li>)}</ul>
-          <form className="two" onSubmit={addPack}>
+            {packs.map((p) => <li key={p.id}><strong>{p.votesCount} votes</strong> — {xaf(p.priceXaf)} {isOwner && <button type="button" className="btn btn-ghost sm danger" onClick={() => removePack(p)}>Retirer</button>}</li>)}</ul>
+          {isOwner ? <form className="two" onSubmit={addPack}>
             <label className="field"><span>Nombre de votes</span><input className="input" type="number" min={2} required value={votes} onChange={(e) => setVotes(e.target.value)} /></label>
             <label className="field"><span>Prix du pack (FCFA)</span><input className="input" type="number" min={1} required value={price} onChange={(e) => setPrice(e.target.value)} /></label>
             <button className="btn btn-outline" type="submit">Ajouter le pack</button>
-          </form>
+          </form> : <p className="muted small">Seul le propriétaire peut créer ou modifier les tarifs des packs.</p>}
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       )}

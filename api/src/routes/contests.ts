@@ -156,10 +156,29 @@ contestsRouter.get('/:id', ah(async (req, res) => {
 
 contestsRouter.patch('/:id', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
-  await needRole(req, id, ['owner', 'manager']);
+  const role = await needRole(req, id, ['owner', 'manager']);
   const b = contestPatch.parse(req.body) as Record<string, any>;
-  const current = (await q('SELECT visibility, access_password_hash, starts_at, ends_at, vote_type, vote_price_xaf FROM contests WHERE id = $1', [id])).rows[0];
+  const current = (await q(`SELECT slug, visibility, access_password_hash, starts_at, ends_at, vote_type,
+      vote_price_xaf, max_choices_per_vote, free_votes_per_period, free_vote_period_hours, results_display
+    FROM contests WHERE id = $1`, [id])).rows[0];
   if (!current) throw new HttpError(404, 'Concours introuvable', 'not_found');
+  if (role !== 'owner') {
+    const sameDate = (a: unknown, b: unknown) => a == null && b == null ||
+      a != null && b != null && new Date(a as any).getTime() === new Date(b as any).getTime();
+    const restrictedChange =
+      b.slug !== undefined && String(b.slug).toLowerCase() !== String(current.slug).toLowerCase() ||
+      b.voteType !== undefined && b.voteType !== current.vote_type ||
+      b.votePriceXaf !== undefined && b.votePriceXaf !== Number(current.vote_price_xaf) ||
+      b.maxChoicesPerVote !== undefined && b.maxChoicesPerVote !== Number(current.max_choices_per_vote) ||
+      b.freeVotesPerPeriod !== undefined && b.freeVotesPerPeriod !== Number(current.free_votes_per_period) ||
+      b.freeVotePeriodHours !== undefined && b.freeVotePeriodHours !== Number(current.free_vote_period_hours) ||
+      b.startsAt !== undefined && !sameDate(b.startsAt, current.starts_at) ||
+      b.endsAt !== undefined && !sameDate(b.endsAt, current.ends_at) ||
+      b.visibility !== undefined && b.visibility !== current.visibility ||
+      b.resultsDisplay !== undefined && b.resultsDisplay !== current.results_display ||
+      b.accessPassword !== undefined && (b.accessPassword ? true : Boolean(current.access_password_hash));
+    if (restrictedChange) throw new HttpError(403, 'Seul le propriétaire peut modifier les paramètres structurants du vote', 'owner_permission_required');
+  }
   // Valide l'état final, pas seulement les champs présents dans le PATCH.
   const nextStartsAt = b.startsAt === undefined ? current.starts_at : b.startsAt;
   const nextEndsAt = b.endsAt === undefined ? current.ends_at : b.endsAt;
@@ -294,14 +313,14 @@ contestsRouter.post('/:id/logo', rawFile, ah(async (req, res) => {
 // ---------- Packs de votes ----------
 contestsRouter.post('/:id/packs', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
-  await needRole(req, id, ['owner', 'manager']);
+  await needRole(req, id, ['owner']);
   const b = z.object({ votesCount: z.number().int().min(1).max(100000), priceXaf: z.number().int().min(1), label: z.string().max(60).nullish() }).parse(req.body);
   const r = await q('INSERT INTO vote_packs (contest_id, label, votes_count, price_xaf) VALUES ($1,$2,$3,$4) RETURNING *', [id, b.label ?? null, b.votesCount, b.priceXaf]);
   res.status(201).json({ pack: toCamel(r.rows[0]) });
 }));
 contestsRouter.delete('/:id/packs/:pid', ah(async (req, res) => {
   const id = uuidParam(req, 'id'); const pid = uuidParam(req, 'pid');
-  await needRole(req, id, ['owner', 'manager']);
+  await needRole(req, id, ['owner']);
   // Suppression douce : une commande passée peut référencer ce pack
   const r = await q('UPDATE vote_packs SET is_active = false WHERE id = $2 AND contest_id = $1 RETURNING id', [id, pid]);
   if (!r.rows[0]) throw new HttpError(404, 'Pack introuvable', 'not_found');
@@ -339,6 +358,18 @@ contestsRouter.get('/:id/members', ah(async (req, res) => {
   const r = await q(`SELECT m.id, m.role, m.status, m.accepted_at, u.full_name, u.email FROM contest_members m
                        LEFT JOIN users u ON u.id = m.user_id WHERE m.contest_id = $1 AND m.status <> 'revoked' ORDER BY m.created_at`, [id]);
   res.json({ members: r.rows.map((x) => toCamel(x)) });
+}));
+
+contestsRouter.patch('/:id/members/:mid', ah(async (req, res) => {
+  const id = uuidParam(req, 'id'); const mid = uuidParam(req, 'mid');
+  await needRole(req, id, ['owner']);
+  const { role } = z.object({ role: z.enum(['manager', 'viewer']) }).parse(req.body);
+  const r = await q(`UPDATE contest_members
+    SET role = $3
+    WHERE id = $2 AND contest_id = $1 AND role <> 'owner' AND status IN ('active', 'invited')
+    RETURNING id, role, status`, [id, mid, role]);
+  if (!r.rows[0]) throw new HttpError(404, 'Membre ou invitation introuvable', 'member_not_found');
+  res.json({ member: toCamel(r.rows[0]) });
 }));
 
 contestsRouter.delete('/:id/members/:mid', ah(async (req, res) => {
@@ -390,10 +421,11 @@ contestsRouter.get('/:id/results.csv', ah(async (req, res) => {
 
 contestsRouter.get('/:id/orders', ah(async (req, res) => {
   const id = uuidParam(req, 'id');
-  await needRole(req, id, ['owner', 'manager']);
+  const role = await needRole(req, id, ['owner', 'manager']);
   const limit = Math.min(Number(req.query.limit) || 50, 200);
+  const financialColumns = role === 'owner' ? ', subtotal_xaf, fee_xaf, total_xaf' : '';
   const r = await q(
-    `SELECT reference, kind, status, votes_count, subtotal_xaf, fee_xaf, total_xaf, voter_phone_masked, country_code, created_at, confirmed_at
+    `SELECT reference, kind, status, votes_count${financialColumns}, voter_phone_masked, country_code, created_at, confirmed_at
        FROM vote_orders WHERE contest_id = $1 ORDER BY created_at DESC LIMIT $2`, [id, limit]);
   res.json({ orders: r.rows.map((x) => toCamel(x)) });
 }));

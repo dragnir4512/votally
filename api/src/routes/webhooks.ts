@@ -1,3 +1,4 @@
+
 import { Router } from 'express';
 import { ah, HttpError } from '../http.js';
 import { q, withTx } from '../db.js';
@@ -6,60 +7,209 @@ import { getPaymentProvider, type PaymentProvider } from '../providers.js';
 export const webhooksRouter = Router();
 
 /**
- * Traite un événement d'agrégateur (webhook réel ou simulateur de développement).
- * Étapes : anti-rejeu -> vérification serveur à serveur -> confirmation atomique en base.
+ * Vérifie un paiement directement auprès de son agrégateur
+ * et confirme les votes si le paiement est réellement réussi.
+ *
+ * Cette fonction est partagée entre les webhooks et la vérification manuelle.
  */
-export async function handleProviderEvent(provider: PaymentProvider, eventId: string, providerReference: string, payload: unknown) {
-  // Anti-rejeu : un événement déjà TRAITÉ est ignoré ; un événement reçu mais non traité est retenté
-  const ins = await q(
-    `INSERT INTO webhook_events (provider, event_id, signature_valid, payload) VALUES ($1,$2,true,$3)
-     ON CONFLICT (provider, event_id) DO NOTHING RETURNING id`, [provider.name, eventId, payload]);
-  let eventRowId: number | undefined = ins.rows[0]?.id;
+export async function reconcileProviderPayment(
+  provider: PaymentProvider,
+  providerReference: string,
+) {
+  const pay = (await q(
+    `SELECT id, amount_xaf, status
+     FROM payments
+     WHERE provider = $1 AND provider_reference = $2`,
+    [provider.name, providerReference],
+  )).rows[0];
+
+  if (!pay) {
+    throw new Error('Paiement inconnu pour cette référence.');
+  }
+
+  const verification = await provider.verify(providerReference);
+
+  if (verification.status === 'succeeded') {
+    if (
+      !Number.isSafeInteger(verification.amountXaf)
+      || verification.amountXaf !== Number(pay.amount_xaf)
+    ) {
+      throw new Error(
+        `Montant absent ou incohérent : ${verification.amountXaf ?? 'non fourni'} reçu, ${pay.amount_xaf} attendu.`,
+      );
+    }
+
+    const result = await withTx(null, (cx) =>
+      cx.query(
+        'SELECT confirm_payment_and_votes($1, $2) AS r',
+        [pay.id, providerReference],
+      ),
+    );
+
+    return {
+      received: true,
+      outcome: result.rows[0].r.status,
+      paymentStatus: 'succeeded' as const,
+    };
+  }
+
+  if (
+    verification.status === 'failed'
+    || verification.status === 'expired'
+  ) {
+    await q(
+      'SELECT fail_payment($1, $2, $3)',
+      [
+        pay.id,
+        `Agrégateur : ${verification.status}`,
+        verification.status === 'expired',
+      ],
+    );
+  }
+
+  return {
+    received: true,
+    outcome: verification.status,
+
+    paymentStatus: verification.status,
+  };
+}
+
+/**
+ * Traite un événement d'agrégateur.
+ * Anti-rejeu -> vérification serveur à serveur -> confirmation atomique.
+ */
+
+export async function handleProviderEvent(
+  provider: PaymentProvider,
+  eventId: string,
+  providerReference: string,
+  payload: unknown,
+) {
+  // Enregistrer l'événement sans créer de doublon.
+  await q(
+    `INSERT INTO webhook_events (provider, event_id, signature_valid, payload)
+     VALUES ($1, $2, true, $3)
+     ON CONFLICT (provider, event_id) DO NOTHING`,
+    [provider.name, eventId, payload],
+  );
+
+  // Réserver atomiquement le traitement de cet événement.
+  // Un verrou abandonné peut être récupéré après 2 minutes.
+  const claim = await q(
+    `UPDATE webhook_events
+     SET processing_started_at = now(),
+         processing_error = NULL
+     WHERE provider = $1
+       AND event_id = $2
+       AND processed_at IS NULL
+       AND (
+         processing_started_at IS NULL
+         OR processing_started_at < now() - interval '2 minutes'
+       )
+     RETURNING id`,
+    [provider.name, eventId],
+  );
+
+  const eventRowId = claim.rows[0]?.id;
+
+  // Un autre traitement possède déjà le verrou,
+  // ou l'événement a déjà été traité.
   if (!eventRowId) {
-    const ex = (await q('SELECT id, processed_at FROM webhook_events WHERE provider = $1 AND event_id = $2', [provider.name, eventId])).rows[0];
-    if (ex.processed_at) return { received: true, duplicate: true as const };
-    eventRowId = ex.id;
+    const existing = (
+      await q(
+        `SELECT processed_at
+         FROM webhook_events
+         WHERE provider = $1 AND event_id = $2`,
+        [provider.name, eventId],
+      )
+    ).rows[0];
+
+    if (!existing) {
+      throw new Error('Événement webhook introuvable.');
+    }
+
+    return { received: true, duplicate: true as const };
   }
 
   try {
-    const pay = (await q('SELECT id, amount_xaf FROM payments WHERE provider = $1 AND provider_reference = $2', [provider.name, providerReference])).rows[0];
-    if (!pay) throw new Error('Paiement inconnu pour cette référence');
+    const result = await reconcileProviderPayment(
+      provider,
+      providerReference,
+    );
 
-    const v = await provider.verify(providerReference);                           // on ne croit pas le webhook sur parole
-    let outcome = v.status as string;
-    if (v.status === 'succeeded') {
-      // Un paiement n'est confirmé que si l'agrégateur retourne lui-même le montant encaissé.
-      // L'absence du montant ne doit jamais être interprétée comme une validation.
-      if (!Number.isSafeInteger(v.amountXaf) || v.amountXaf !== Number(pay.amount_xaf)) {
-        throw new Error(`Montant absent ou incohérent : ${v.amountXaf ?? 'non fourni'} reçu, ${pay.amount_xaf} attendu`);
-      }
-      const r = await withTx(null, (c) => c.query('SELECT confirm_payment_and_votes($1, $2) AS r', [pay.id, providerReference]));
-      outcome = r.rows[0].r.status;                                                  // confirmed | already_confirmed | needs_refund
-    } else if (v.status === 'failed' || v.status === 'expired') {
-      await q('SELECT fail_payment($1, $2, $3)', [pay.id, `Agrégateur : ${v.status}`, v.status === 'expired']);
-    }
-    await q('UPDATE webhook_events SET processed_at = now(), processing_error = NULL WHERE id = $1', [eventRowId]);
-    return { received: true, outcome };
-  } catch (e: any) {
-    await q('UPDATE webhook_events SET processing_error = $2 WHERE id = $1', [eventRowId, String(e.message).slice(0, 500)]);
-    throw e;     // 500 : l'agrégateur réessaiera, et l'événement non traité sera retenté
+    await q(
+      `UPDATE webhook_events
+       SET processed_at = now(),
+           processing_started_at = NULL,
+           processing_error = NULL
+       WHERE id = $1`,
+      [eventRowId],
+    );
+
+    return result;
+  } catch (error) {
+    const message = error instanceof Error
+      ? error.message
+      : String(error);
+
+    await q(
+      `UPDATE webhook_events
+       SET processing_started_at = NULL,
+           processing_error = $2
+       WHERE id = $1`,
+      [eventRowId, message.slice(0, 500)],
+    );
+
+    throw error;
   }
 }
 
-/** Webhook d'agrégateur. Corps BRUT (express.raw) pour vérifier la signature. */
-webhooksRouter.post('/payments/:provider', ah(async (req, res) => {
-  const provider = getPaymentProvider(req.params.provider as string);
-  if (!provider) throw new HttpError(404, 'Agrégateur inconnu', 'not_found');
-  const raw: Buffer = req.body;
-  const signatureHeader = provider.name === 'notchpay'
-  ? 'x-notch-signature'
-  : 'x-signature';
+/** Webhook d'agrégateur. Corps brut pour vérifier la signature. */
+webhooksRouter.post(
+  '/payments/:provider',
+  ah(async (req, res) => {
+    const provider = getPaymentProvider(
+      req.params.provider as string,
+    );
 
-if (!Buffer.isBuffer(raw) || !provider.verifyWebhookSignature(raw, req.header(signatureHeader) ?? undefined)) {
-    throw new HttpError(401, 'Signature invalide', 'bad_signature');
-  }
-  let payload: any;
-  try { payload = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'JSON invalide', 'bad_json'); }
-  const evt = provider.parseWebhook(payload);
-  res.json(await handleProviderEvent(provider, evt.eventId, evt.providerReference, payload));
-}));
+    if (!provider) {
+      throw new HttpError(404, 'Agrégateur inconnu', 'not_found');
+    }
+
+    const raw: Buffer = req.body;
+
+    const signatureHeader = provider.name === 'notchpay'
+      ? 'x-notch-signature'
+      : 'x-signature';
+
+    if (
+      !Buffer.isBuffer(raw)
+      || !provider.verifyWebhookSignature(
+        raw,
+        req.header(signatureHeader) ?? undefined,
+      )
+    ) {
+      throw new HttpError(401, 'Signature invalide', 'bad_signature');
+    }
+
+    let payload: any;
+
+    try {
+      payload = JSON.parse(raw.toString('utf8'));
+    } catch {
+      throw new HttpError(400, 'JSON invalide', 'bad_json');
+    }
+
+    const event = provider.parseWebhook(payload);
+
+    res.json(
+      await handleProviderEvent(
+        provider,
+        event.eventId,
+        event.providerReference,
+        payload,
+      ),
+    );
+  }),
+);

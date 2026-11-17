@@ -3,6 +3,7 @@ import { z } from 'zod';
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(20),
   DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(5000),
   DB_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300000).default(30000),
@@ -15,15 +16,79 @@ const schema = z.object({
   // Frais de transaction estimés (points de base) affichés au votant. 250 = 2,5 %. À remplacer par le barème réel de l'agrégateur.
   FEE_RATE_BPS: z.coerce.number().int().min(0).max(1000).default(250),
   PAYMENT_PROVIDER: z.enum(['mock', 'notchpay']).default('mock'),
+  SMS_PROVIDER: z.enum(['console', 'smspro']).default('console'),
+  SMSPRO_API_BASE_URL: z.string().url().default('https://v2.smspro.cm'),
+  SMSPRO_API_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  SMSPRO_SENDER_ID: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).max(11).optional()),
   MOCK_WEBHOOK_SECRET: z.string().min(8).default('mock-secret-change-me'),
     // --- Notch Pay : paiements entrants ---
   NOTCHPAY_PUBLIC_KEY: z.string().min(1).optional(),
   NOTCHPAY_HASH_KEY: z.string().min(1).optional(),
   NOTCHPAY_CALLBACK_URL: z.string().url().optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3001'),
-  // Dossier des fichiers téléversés (développement / serveur unique). En production : stockage objet S3 (voir storage.ts).
+  RESEND_API_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  EMAIL_FROM: z.preprocess((v) => v === '' ? undefined : v, z.string().min(3).optional()),
+  // Stockage objet compatible S3. Les secrets ne doivent jamais être versionnés.
+  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  S3_ENDPOINT: z.preprocess((v) => v === '' ? undefined : v, z.string().url().optional()),
+  S3_REGION: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  S3_BUCKET: z.preprocess((v) => v === '' ? undefined : v, z.string().min(3).max(63).optional()),
+  S3_ACCESS_KEY_ID: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  S3_SECRET_ACCESS_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  S3_SESSION_TOKEN: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  // Dossier des fichiers téléversés (développement / tests uniquement).
   UPLOAD_DIR: z.string().default('./uploads'),
 }).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    if (data.STORAGE_DRIVER !== 's3') {
+      ctx.addIssue({ code: 'custom', path: ['STORAGE_DRIVER'], message: 'STORAGE_DRIVER=s3 est obligatoire en production' });
+    }
+    const s3Values = [data.S3_ENDPOINT, data.S3_REGION, data.S3_BUCKET, data.S3_ACCESS_KEY_ID, data.S3_SECRET_ACCESS_KEY];
+    if (s3Values.some((value) => !value)) {
+      ctx.addIssue({ code: 'custom', path: ['S3_ENDPOINT'], message: 'S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID et S3_SECRET_ACCESS_KEY sont obligatoires en production' });
+    }
+    if (data.S3_ENDPOINT) {
+      try {
+        if (new URL(data.S3_ENDPOINT).protocol !== 'https:') throw new Error('HTTPS requis');
+      } catch {
+        ctx.addIssue({ code: 'custom', path: ['S3_ENDPOINT'], message: 'Le endpoint S3 doit être une URL HTTPS valide en production' });
+      }
+    }
+    if (data.JWT_SECRET.length < 32) {
+      ctx.addIssue({ code: 'custom', path: ['JWT_SECRET'], message: '32 caractères minimum en production' });
+    }
+    if (data.PHONE_HASH_PEPPER.length < 32) {
+      ctx.addIssue({ code: 'custom', path: ['PHONE_HASH_PEPPER'], message: '32 caractères minimum en production' });
+    }
+    if (data.BCRYPT_COST < 12) {
+      ctx.addIssue({ code: 'custom', path: ['BCRYPT_COST'], message: 'BCRYPT_COST doit être au moins égal à 12 en production' });
+    }
+    const origins = data.CORS_ORIGINS.split(',').map((s) => s.trim());
+    const invalidOrigin = origins.length === 0 || origins.some((origin) => {
+      try {
+        const parsedOrigin = new URL(origin);
+        return parsedOrigin.protocol !== 'https:' || parsedOrigin.origin !== origin || origin.includes('*');
+      } catch { return true; }
+    });
+    if (invalidOrigin) {
+      ctx.addIssue({ code: 'custom', path: ['CORS_ORIGINS'], message: 'En production, seules des origines HTTPS exactes (sans chemin ni joker) sont autorisées' });
+    }
+    if (data.JWT_SECRET.startsWith('remplace-moi-') || data.PHONE_HASH_PEPPER.startsWith('remplace-moi-')) {
+      ctx.addIssue({ code: 'custom', path: ['JWT_SECRET'], message: 'Les valeurs d’exemple doivent être remplacées par des secrets aléatoires' });
+    }
+    if (!data.RESEND_API_KEY || !data.EMAIL_FROM) {
+      ctx.addIssue({ code: 'custom', path: ['RESEND_API_KEY'], message: 'RESEND_API_KEY et EMAIL_FROM sont obligatoires en production pour la récupération de compte par email' });
+    }
+  }
+  if (!!data.RESEND_API_KEY !== !!data.EMAIL_FROM) {
+    ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'RESEND_API_KEY et EMAIL_FROM doivent être configurés ensemble' });
+  }
+  if (data.SMS_PROVIDER === 'smspro' && (!data.SMSPRO_API_KEY || !data.SMSPRO_SENDER_ID)) {
+    ctx.addIssue({ code: 'custom', path: ['SMSPRO_API_KEY'], message: 'SMSPRO_API_KEY et SMSPRO_SENDER_ID sont obligatoires lorsque SMS_PROVIDER=smspro' });
+  }
+  if (data.NODE_ENV === 'production' && data.SMS_PROVIDER !== 'smspro') {
+    ctx.addIssue({ code: 'custom', path: ['SMS_PROVIDER'], message: 'En production, SMS_PROVIDER=smspro est obligatoire' });
+  }
   if (data.PAYMENT_PROVIDER === 'notchpay') {
     const requiredKeys = [
       'NOTCHPAY_PUBLIC_KEY',

@@ -55,10 +55,10 @@ async function approvedKyc(creator: { agent: request.Agent; userId: string }, ad
   return k.body.kyc.id as string;
 }
 async function payout(agent: request.Agent, amountXaf: number, code?: string) {
-  const otp = await agent.post('/payouts/otp').send({});
+  const otp = await agent.post('/payouts/otp').send({ amountXaf, channel: 'email' });
   expect(otp.status, JSON.stringify(otp.body)).toBe(200);
   await q(`UPDATE otp_codes SET created_at = created_at - interval '2 minutes', expires_at = expires_at - interval '2 minutes' WHERE purpose = 'payout'`);   // évite le délai anti-spam entre deux codes
-  return agent.post('/payouts').send({ amountXaf, code: code ?? otp.body.devCode });
+  return agent.post('/payouts').send({ amountXaf, code: code ?? otp.body.devCode, challenge: otp.body.challenge });
 }
 
 describe('Photos', () => {
@@ -170,7 +170,7 @@ describe('Retraits', () => {
     await q(`UPDATE contests SET closed_at = now() - interval '80 hours' WHERE id = $1`, [c1.id]);
     expect((await creator.agent.get('/me/balance')).body.balance.withdrawableXaf).toBe(5520);
 
-    expect((await creator.agent.post('/payouts/otp').send({})).body.error.code).toBe('kyc_required');            // pas de retrait sans identité vérifiée
+    expect((await creator.agent.post('/payouts/otp').send({ amountXaf: 5000, channel: 'email' })).body.error.code).toBe('kyc_required'); // KYC vérifié avant l'envoi du code
     await approvedKyc(creator, admin);
     expect((await creator.agent.get('/payouts/quote?amountXaf=5000')).body).toEqual({ amountXaf: 5000, feeXaf: 100, netXaf: 4900 });
 
@@ -182,6 +182,19 @@ describe('Retraits', () => {
     const ok = await payout(creator.agent, 5000);
     expect(ok.status, JSON.stringify(ok.body)).toBe(201);
     expect(ok.body.payout).toMatchObject({ status: 'succeeded', amountXaf: 5000, feeXaf: 100, netXaf: 4900 });
+    const payoutEntries = await q(
+      `SELECT a.code, e.direction, e.amount_xaf::int AS amount_xaf
+         FROM ledger_transactions t
+         JOIN ledger_entries e ON e.transaction_id = t.id
+         JOIN ledger_accounts a ON a.id = e.account_id
+        WHERE t.payout_id = $1`,
+      [ok.body.payout.id],
+    );
+    expect(payoutEntries.rows).toEqual(expect.arrayContaining([
+      { code: `LIABILITY:CREATOR:${creator.userId}`, direction: 'debit', amount_xaf: 5000 },
+      { code: 'CLEARING:mock', direction: 'credit', amount_xaf: 4900 },
+      { code: 'LIABILITY:PROVIDER_FEES', direction: 'credit', amount_xaf: 100 },
+    ]));
     bal = (await creator.agent.get('/me/balance')).body.balance;
     expect(bal).toMatchObject({ totalXaf: 520, withdrawableXaf: 520, inFlightXaf: 0 });                          // 5 520 − 5 000 débités
 
@@ -228,6 +241,25 @@ describe('Retraits', () => {
 });
 
 describe('Administration : remboursements, fraude, tableau de bord', () => {
+  it('révoque les sessions lors de la suspension et ne les restaure pas à la réactivation', async () => {
+    const creator = await signup();
+    const admin = await signup('admin');
+
+    const suspended = await admin.agent.post(`/admin/users/${creator.userId}/suspend`).send({ reason: 'Vérification de sécurité' });
+    expect(suspended.status).toBe(200);
+    expect((await creator.agent.get('/auth/me')).status).toBe(401);
+
+    const sessions = await q(
+      `SELECT count(*)::int AS n FROM user_sessions WHERE user_id = $1 AND revoked_at IS NOT NULL`,
+      [creator.userId],
+    );
+    expect(sessions.rows[0].n).toBeGreaterThan(0);
+
+    const reactivated = await admin.agent.post(`/admin/users/${creator.userId}/reactivate`).send({});
+    expect(reactivated.status).toBe(200);
+    expect((await creator.agent.get('/auth/me')).status).toBe(401);
+  });
+
   it('un paiement tardif apparaît à rembourser ; le remboursement le solde', async () => {
     const creator = await signup(); const admin = await signup('admin');
     const c = await paidContest(creator.agent);
@@ -243,6 +275,35 @@ describe('Administration : remboursements, fraude, tableau de bord', () => {
     expect((await admin.agent.post(`/admin/payments/${item.id}/refund`).send({ reason: '' })).status).toBe(400);
     expect((await admin.agent.post(`/admin/payments/${item.id}/refund`).send({ reason: 'Concours clos, remboursé via agrégateur' })).status).toBe(200);
     expect((await admin.agent.get('/admin/refunds')).body.items.some((x: any) => x.id === item.id)).toBe(false);
+  });
+
+  it('refuse de rembourser un paiement échoué qui n’a jamais été encaissé', async () => {
+    const creator = await signup();
+    const admin = await signup('admin');
+    const c = await paidContest(creator.agent);
+    const order = await request(app).post(`/public/contests/${c.slug}/orders`)
+      .send({ method: 'mtn_momo', phone: '677000444', choices: [{ candidateId: c.cands[0]!.id, quantity: 2 }] });
+    expect(order.status).toBe(201);
+
+    const payment = (await q(
+      `SELECT p.id, p.provider_reference
+         FROM payments p JOIN vote_orders o ON o.id = p.order_id
+        WHERE o.reference = $1`,
+      [order.body.reference],
+    )).rows[0];
+
+    await q('SELECT fail_payment($1, $2)', [payment.id, 'Échec simulé chez l’agrégateur']);
+
+    const refund = await admin.agent.post(`/admin/payments/${payment.id}/refund`)
+      .send({ reason: 'Tentative de remboursement invalide' });
+    expect(refund.status).toBe(422);
+    expect(refund.body.error.code).toBe('business_rule');
+    const stored = (await q('SELECT status FROM payments WHERE id = $1', [payment.id])).rows[0];
+    expect(stored.status).toBe('failed');
+    expect((await q(
+      `SELECT count(*)::int AS n FROM ledger_transactions WHERE idempotency_key = $1`,
+      ['refund:' + payment.id],
+    )).rows[0].n).toBe(0);
   });
 
   it('vue d\'ensemble et alertes de fraude', async () => {
