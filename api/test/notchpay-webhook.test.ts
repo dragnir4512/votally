@@ -1,6 +1,6 @@
 
 import { createHmac } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { config } from '../src/config';
 import { notchPayProvider } from '../src/providers/notchpay';
 
@@ -76,5 +76,47 @@ describe('Notch Pay — sécurité des webhooks', () => {
         data: {},
       }),
     ).toThrow('Format de webhook Notch Pay invalide.');
+  });
+});
+
+
+describe('Notch Pay — vérification serveur du paiement', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('lit le statut et le montant dans response.payment', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: 'success',
+      payment: {
+        reference: 'trx-votally-001',
+        status: 'complete',
+        amount: 1025,
+        currency: 'XAF',
+      },
+    }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(notchPayProvider.verify('trx-votally-001')).resolves.toEqual({
+      status: 'succeeded',
+      amountXaf: 1025,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('/payments/trx-votally-001');
+  });
+
+  it('refuse une référence différente de celle vérifiée', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: 'success',
+      payment: {
+        reference: 'trx-other',
+        status: 'complete',
+        amount: 1025,
+        currency: 'XAF',
+      },
+    }), { status: 200 })));
+
+    await expect(notchPayProvider.verify('trx-votally-001'))
+      .rejects.toThrow('référence de transaction incohérente');
   });
 });
