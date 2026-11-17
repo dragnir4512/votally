@@ -100,7 +100,7 @@ describe('PayoutPanel', () => {
     fireEvent.change(screen.getByLabelText('Code de confirmation'), { target: { value: '654321' } });
     fireEvent.click(screen.getByRole('button', { name: /Confirmer le retrait/ }));
     await screen.findByText(/envoyés sur ton compte Mobile Money/);
-    expect(calls.find((c) => c.key === 'POST /payouts')!.body).toEqual({ amountXaf: 5000, code: '654321' });
+    expect(calls.find((c) => c.key === 'POST /payouts')!.body).toEqual({ amountXaf: 5000, code: '654321', challenge: 'test-payout-challenge' });
   });
 });
 
