@@ -7,7 +7,8 @@
     "dev": "tsx watch --env-file=../.env src/server.ts",
     "start": "tsx --env-file=../.env src/server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --env-file=../.env ./node_modules/vitest/vitest.mjs run"
+    "test": "node --env-file=../.env ./node_modules/vitest/vitest.mjs run",
+    "storage:migrate": "tsx --env-file=../.env src/scripts/migrate-storage.ts"
   },
   "engines": {
     "node": ">=20.6"
