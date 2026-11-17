@@ -50,6 +50,10 @@ Appliquer `db/migrations/019_api_rate_limits.sql` avant de déployer cette versi
 
 Aucun fournisseur réel de décaissement Mobile Money n'est actuellement intégré. Le fournisseur de retrait simulé est réservé au développement et aux tests. Avant le déploiement de cette protection, contrôler les retraits historiques dont `provider = 'mock'` et `status = 'succeeded'` : ils ne prouvent pas qu'un transfert réel a été effectué et doivent être rapprochés manuellement avec les relevés du fournisseur. En production, les routes de devis, de confirmation OTP et de demande de retrait échouent volontairement avec `payout_provider_unavailable`. Ne pas réactiver les retraits avant l'intégration et les tests réels d'un fournisseur de décaissement, avec vérification serveur du statut, idempotence et rapprochement des transactions.
 
+## Stockage des fichiers et pièces KYC
+
+L'implémentation actuelle utilise le disque local et convient au développement ou à un serveur unique persistant. Elle ne constitue pas un stockage de production multi-instances : l'API refuse désormais de démarrer avec `NODE_ENV=production` tant qu'un adaptateur de stockage objet durable n'est pas intégré. Cet adaptateur devra préserver la séparation public/privé, l'accès administrateur journalisé aux pièces KYC, le chiffrement au repos, les politiques de rétention et les sauvegardes.
+
 ## Sécurité des remboursements
 
 La migration `021_guard_refund_payment.sql` interdit de comptabiliser un remboursement si le paiement n'a pas le statut `succeeded` ou si aucune écriture d'encaissement correspondante n'existe dans le grand livre. Un paiement échoué, expiré ou encore en attente ne peut donc pas créer une écriture de remboursement fictive. Le remboursement externe auprès de l'agrégateur reste une opération distincte : l'administrateur doit l'effectuer et le confirmer avant d'appeler l'endpoint interne. Les éventuels anciens paiements déjà marqués `refunded` sans écriture correspondante doivent être rapprochés manuellement.
