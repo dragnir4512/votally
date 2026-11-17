@@ -11,7 +11,7 @@ async function main() {
   const local = new LocalStorage(path.resolve(config.UPLOAD_DIR));
   const result = await q<{ key: string }>('SELECT key FROM uploads ORDER BY created_at, key');
   const keys = result.rows.map((row) => row.key);
-  console.log(\`Fichiers référencés en base : \${keys.length}\`);
+  console.log(`Fichiers référencés en base : ${keys.length}`);
   if (!apply) {
     console.log('Mode simulation : aucun objet ne sera modifié.');
     console.log('Relancer avec --apply pour copier et vérifier les objets.');
@@ -38,25 +38,25 @@ async function main() {
 
     if (target) {
       if (source && digest(source) !== digest(target)) {
-        throw new Error(\`Conflit : le fichier local et l'objet S3 diffèrent pour \${key}. Aucun écrasement effectué.\`);
+        throw new Error(`Conflit : le fichier local et l'objet S3 diffèrent pour ${key}. Aucun écrasement effectué.`);
       }
       alreadyPresent++;
       continue;
     }
     if (!source) {
-      throw new Error(\`Fichier local absent et objet S3 absent : \${key}. Migration interrompue.\`);
+      throw new Error(`Fichier local absent et objet S3 absent : ${key}. Migration interrompue.`);
     }
 
     await remote.put(key, source);
     const verification = await remote.get(key);
     if (!verification || digest(source) !== digest(verification)) {
-      throw new Error(\`Échec de vérification SHA-256 après copie : \${key}\`);
+      throw new Error(`Échec de vérification SHA-256 après copie : ${key}`);
     }
     copied++;
-    console.log(\`Copié et vérifié : \${key}\`);
+    console.log(`Copié et vérifié : ${key}`);
   }
 
-  console.log(\`Migration terminée. Copiés : \${copied}. Déjà présents et cohérents : \${alreadyPresent}.\`);
+  console.log(`Migration terminée. Copiés : ${copied}. Déjà présents et cohérents : ${alreadyPresent}.`);
   console.log('Les fichiers locaux et les clés PostgreSQL ont été conservés.');
 }
 
