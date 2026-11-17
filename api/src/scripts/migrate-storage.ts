@@ -9,15 +9,6 @@ const digest = (data: Buffer) => createHash('sha256').update(data).digest('hex')
 
 async function main() {
   const local = new LocalStorage(path.resolve(config.UPLOAD_DIR));
-  const remote = new S3Storage({
-    endpoint: config.S3_ENDPOINT!,
-    region: config.S3_REGION!,
-    bucket: config.S3_BUCKET!,
-    accessKeyId: config.S3_ACCESS_KEY_ID!,
-    secretAccessKey: config.S3_SECRET_ACCESS_KEY!,
-    ...(config.S3_SESSION_TOKEN ? { sessionToken: config.S3_SESSION_TOKEN } : {}),
-  });
-
   const result = await q<{ key: string }>('SELECT key FROM uploads ORDER BY created_at, key');
   const keys = result.rows.map((row) => row.key);
   console.log(\`Fichiers référencés en base : \${keys.length}\`);
@@ -26,6 +17,18 @@ async function main() {
     console.log('Relancer avec --apply pour copier et vérifier les objets.');
     return;
   }
+
+  if (!config.S3_ENDPOINT || !config.S3_REGION || !config.S3_BUCKET || !config.S3_ACCESS_KEY_ID || !config.S3_SECRET_ACCESS_KEY) {
+    throw new Error('Pour --apply, configure les cinq variables S3 obligatoires dans l’environnement.');
+  }
+  const remote = new S3Storage({
+    endpoint: config.S3_ENDPOINT,
+    region: config.S3_REGION,
+    bucket: config.S3_BUCKET,
+    accessKeyId: config.S3_ACCESS_KEY_ID,
+    secretAccessKey: config.S3_SECRET_ACCESS_KEY,
+    ...(config.S3_SESSION_TOKEN ? { sessionToken: config.S3_SESSION_TOKEN } : {}),
+  });
 
   let copied = 0;
   let alreadyPresent = 0;
