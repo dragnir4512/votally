@@ -19,6 +19,12 @@ function getTransaction(data: unknown): JsonObject | null {
 
   const payload = isObject(data.data) ? data.data : data;
 
+  // The current verification guide exposes the transaction as response.payment.
+  // Older hosted-checkout responses expose it as data.transaction.
+  if (isObject(payload.payment)) {
+    return payload.payment;
+  }
+
   if (isObject(payload.transaction)) {
     return payload.transaction;
   }
@@ -101,8 +107,8 @@ export const notchPayProvider: PaymentProvider = {
     // Notch Pay's hosted-checkout response may omit the transaction object at initialization.
     // The merchant reference sent above is also the reference accepted by GET /payments/{reference}.
     const providerReference = transaction
-      ? getString(transaction.reference) ?? getString(transaction.id) ?? reference
-      : reference;
+      ? getString(transaction.reference) ?? getString(transaction.id)
+      : undefined;
 
     if (!response.ok || !authorizationUrl || !providerReference) {
       throw new Error(
