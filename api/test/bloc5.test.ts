@@ -228,6 +228,25 @@ describe('Retraits', () => {
 });
 
 describe('Administration : remboursements, fraude, tableau de bord', () => {
+  it('révoque les sessions lors de la suspension et ne les restaure pas à la réactivation', async () => {
+    const creator = await signup();
+    const admin = await signup('admin');
+
+    const suspended = await admin.agent.post(`/admin/users/${creator.userId}/suspend`).send({ reason: 'Vérification de sécurité' });
+    expect(suspended.status).toBe(200);
+    expect((await creator.agent.get('/auth/me')).status).toBe(401);
+
+    const sessions = await q(
+      `SELECT count(*)::int AS n FROM user_sessions WHERE user_id = $1 AND revoked_at IS NOT NULL`,
+      [creator.userId],
+    );
+    expect(sessions.rows[0].n).toBeGreaterThan(0);
+
+    const reactivated = await admin.agent.post(`/admin/users/${creator.userId}/reactivate`).send({});
+    expect(reactivated.status).toBe(200);
+    expect((await creator.agent.get('/auth/me')).status).toBe(401);
+  });
+
   it('un paiement tardif apparaît à rembourser ; le remboursement le solde', async () => {
     const creator = await signup(); const admin = await signup('admin');
     const c = await paidContest(creator.agent);
