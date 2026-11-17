@@ -72,8 +72,9 @@ describe('PayoutPanel', () => {
     routes = {
       'GET /me/balance': () => ({ json: { balance: { totalXaf: 5520, withdrawableXaf: withdrawable, inFlightXaf: 0, lockedXaf: 5520 - withdrawable, minPayoutXaf: 5000, delayHours: 72, kycStatus: 'approved' } } }),
       'GET /payouts': () => ({ json: { payouts: [] } }),
+      'GET /me/contacts': () => ({ json: { contacts: { email: 'a@b.cm', emailVerified: true, phone: null, phoneVerified: false } } }),
       'GET /payouts/quote?amountXaf=5000': () => ({ json: { amountXaf: 5000, feeXaf: 100, netXaf: 4900 } }),
-      'POST /payouts/otp': () => ({ json: { devCode: '654321' } }),
+      'POST /payouts/otp': () => ({ json: { devCode: '654321', challenge: 'test-payout-challenge' } }),
       'POST /payouts': () => ({ status: 201, json: { payout: { status: 'succeeded', netXaf: 4900 } } }),
     };
     return render(<PayoutPanel payoutPhone="+237** *** *56" />);
