@@ -182,6 +182,19 @@ describe('Retraits', () => {
     const ok = await payout(creator.agent, 5000);
     expect(ok.status, JSON.stringify(ok.body)).toBe(201);
     expect(ok.body.payout).toMatchObject({ status: 'succeeded', amountXaf: 5000, feeXaf: 100, netXaf: 4900 });
+    const payoutEntries = await q(
+      `SELECT a.code, e.direction, e.amount_xaf::int AS amount_xaf
+         FROM ledger_transactions t
+         JOIN ledger_entries e ON e.transaction_id = t.id
+         JOIN ledger_accounts a ON a.id = e.account_id
+        WHERE t.payout_id = $1`,
+      [ok.body.payout.id],
+    );
+    expect(payoutEntries.rows).toEqual(expect.arrayContaining([
+      { code: `LIABILITY:CREATOR:${creator.userId}`, direction: 'debit', amount_xaf: 5000 },
+      { code: 'CLEARING:mock', direction: 'credit', amount_xaf: 4900 },
+      { code: 'LIABILITY:PROVIDER_FEES', direction: 'credit', amount_xaf: 100 },
+    ]));
     bal = (await creator.agent.get('/me/balance')).body.balance;
     expect(bal).toMatchObject({ totalXaf: 520, withdrawableXaf: 520, inFlightXaf: 0 });                          // 5 520 − 5 000 débités
 
