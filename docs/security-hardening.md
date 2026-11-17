@@ -44,7 +44,7 @@ Appliquer `db/migrations/019_api_rate_limits.sql` avant de déployer cette versi
 2. Configurer Resend pour les inscriptions et récupérations par email.
 3. Le fournisseur SMS SmsPro doit être configuré et testé en production (MTN et Orange). Une réponse HTTP acceptée ne prouve pas la livraison au téléphone ; suivre les identifiants et accusés de réception du fournisseur.
 4. Les limites de débit sont partagées par PostgreSQL. Il faut surveiller la taille de la table et vérifier que le nettoyage périodique s'exécute.
-5. Les tests de sécurité et la suite API globale restent à exécuter lors du bloc final de validation.
+5. Rejouer les tests de sécurité et la suite API complète sur l'environnement de préproduction, avec les services externes réellement configurés, avant l'ouverture publique.
 
 ## Retraits en production — fournisseur non disponible
 
