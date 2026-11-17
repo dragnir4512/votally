@@ -144,30 +144,35 @@ authRouter.post('/login/verify', ah(async (req, res) => {
 }));
 
 authRouter.post('/password/forgot', ah(async (req, res) => {
-  const body = z.object({ email: z.string().trim().email().transform((v) => v.toLowerCase()) }).strict().parse(req.body);
-  const emailAddress = body.email;
-  const channel = 'email' as const, target = emailAddress;
-  const user = (await q('SELECT id, email_verified_at AS verified, account_status FROM users WHERE email = $1 AND deleted_at IS NULL', [target])).rows[0];
+  const body = identifier.parse(req.body);
+  const channel = body.email ? 'email' as const : 'sms' as const;
+  const target = body.email ?? normalizePhone(body.phone!);
+  const field = channel === 'email' ? 'email' : 'phone';
+  const verifiedColumn = channel === 'email' ? 'email_verified_at' : 'phone_verified_at';
+  const user = (await q(\`SELECT id, \${verifiedColumn} AS verified, account_status FROM users WHERE \${field} = $1 AND deleted_at IS NULL\`, [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') return res.json({ message: genericRecoveryMessage });
   let code: string;
   try { code = await withTx(null, (c) => issueOtp(c, 'password_reset', channel, target, req.ip)); }
   catch (error) { if (error instanceof HttpError && error.code === 'otp_throttled') return res.json({ message: genericRecoveryMessage }); throw error; }
   try { await deliverCode(channel, target, code, 'password_reset'); }
-  catch (error) { console.error('[auth] password recovery delivery failed', error); return res.json({ message: genericRecoveryMessage }); }
+  catch (error) { console.error('[auth] password recovery delivery failed', error instanceof Error ? error.name : 'delivery_failed'); return res.json({ message: genericRecoveryMessage }); }
   res.json({ message: genericRecoveryMessage, ...(isProd ? {} : { devCode: code }) });
 }));
 
 authRouter.post('/password/reset', ah(async (req, res) => {
-  const body = z.object({ email: z.string().trim().email().transform((v) => v.toLowerCase()), code: z.string().regex(/^\d{6}$/), newPassword: password }).strict().parse(req.body);
-  const emailAddress = body.email, target = emailAddress;
-  const user = (await q('SELECT id, account_status, email_verified_at AS verified FROM users WHERE email = $1 AND deleted_at IS NULL', [target])).rows[0];
+  const body = identifier.safeExtend({ code: z.string().regex(/^\d{6}$/), newPassword: password }).parse(req.body);
+  const channel = body.email ? 'email' as const : 'sms' as const;
+  const target = body.email ?? normalizePhone(body.phone!);
+  const field = channel === 'email' ? 'email' : 'phone';
+  const verifiedColumn = channel === 'email' ? 'email_verified_at' : 'phone_verified_at';
+  const user = (await q(\`SELECT id, account_status, \${verifiedColumn} AS verified FROM users WHERE \${field} = $1 AND deleted_at IS NULL\`, [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   if (!(await consumeOtp('password_reset', target, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   const hash = await bcrypt.hash(body.newPassword, config.BCRYPT_COST);
   await withTx(user.id, async (c) => {
     await c.query('UPDATE users SET password_hash = $2 WHERE id = $1', [user.id, hash]);
-    await c.query(`UPDATE user_sessions SET revoked_at = now(), revoke_reason = 'password_reset'
-      WHERE user_id = $1 AND revoked_at IS NULL`, [user.id]);
+    await c.query(\`UPDATE user_sessions SET revoked_at = now(), revoke_reason = 'password_reset'
+      WHERE user_id = $1 AND revoked_at IS NULL\`, [user.id]);
   });
   clearSessionCookies(res);
   recordAuthEvent(user.id, 'user', 'auth.password_reset', user.id);
