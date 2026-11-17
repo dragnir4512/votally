@@ -46,6 +46,22 @@ Appliquer `db/migrations/019_api_rate_limits.sql` avant de déployer cette versi
 4. Les limites de débit sont partagées par PostgreSQL. Il faut surveiller la taille de la table et vérifier que le nettoyage périodique s'exécute.
 5. Les tests de sécurité et la suite API globale restent à exécuter lors du bloc final de validation.
 
+## Retraits en production — fournisseur non disponible
+
+Aucun fournisseur réel de décaissement Mobile Money n'est actuellement intégré. Le fournisseur de retrait simulé est réservé au développement et aux tests. En production, les routes de devis, de confirmation OTP et de demande de retrait échouent volontairement avec `payout_provider_unavailable`. Ne pas réactiver les retraits avant l'intégration et les tests réels d'un fournisseur de décaissement, avec vérification serveur du statut, idempotence et rapprochement des transactions.
+
+## Révocation des sessions
+
+Toute suspension ou désactivation d'un compte révoque immédiatement ses sessions serveur. La réactivation du compte ne restaure pas les anciennes sessions : l'utilisateur doit se reconnecter et terminer le parcours OTP.
+
+## Récupération du compte
+
+La récupération du mot de passe accepte une adresse email vérifiée ou un numéro de téléphone vérifié. Le code est envoyé sur le canal correspondant. En production, les fournisseurs email et SMS doivent être configurés et testés pour les deux canaux.
+
+## Vérification de l'historique Git
+
+Un ancien changement de la PR #1 a supprimé `cookies.txt`, mais la suppression d'un fichier ne retire pas automatiquement son contenu des commits antérieurs. Exécuter Gitleaks sur tout l'historique Git, sans limiter les commits à une seule branche. Si un cookie de session encore valide ou un secret de signature a été exposé, révoquer les sessions concernées et renouveler le secret JWT. Si un secret permanent a été publié, le révoquer chez son fournisseur. Ne réécrire l'historique partagé qu'après coordination, car cette opération modifie les références Git des collaborateurs.
+
 ## Couverture de régression ajoutée
 
 `api/test/security.test.ts` vérifie la normalisation des numéros camerounais, le rejet d'une origine non autorisée, le format des codes OTP et la robustesse minimale des mots de passe.
