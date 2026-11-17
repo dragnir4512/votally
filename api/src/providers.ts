@@ -157,4 +157,13 @@ export const getPaymentProvider = (name: string) => providers[name];
 export const defaultPaymentProvider = () => providers[config.PAYMENT_PROVIDER]!;
 
 /** Fournisseur utilisé pour les retraits des créateurs. */
-export const defaultPayoutProvider = () => mockProvider;
+/** Aucun agrégateur de décaissement réel n'est intégré pour le moment.
+ * En production, on échoue volontairement : le simulateur ne doit jamais
+ * transformer un retrait en paiement comptabilisé.
+ */
+export const defaultPayoutProvider = () => {
+  if (isProd) {
+    throw new HttpError(503, 'Les retraits sont temporairement indisponibles : aucun fournisseur de décaissement réel n’est configuré.', 'payout_provider_unavailable');
+  }
+  return mockProvider;
+};
