@@ -56,7 +56,36 @@ La migration `022_fix_payout_ledger_fee_split.sql` corrige la fonction `complete
 
 ## Stockage des fichiers et pièces KYC
 
-L'implémentation actuelle utilise le disque local et convient au développement ou à un serveur unique persistant. Elle ne constitue pas un stockage de production multi-instances : l'API refuse désormais de démarrer avec `NODE_ENV=production` tant qu'un adaptateur de stockage objet durable n'est pas intégré. Cet adaptateur devra préserver la séparation public/privé, l'accès administrateur journalisé aux pièces KYC, le chiffrement au repos, les politiques de rétention et les sauvegardes.
+L'API dispose d'un adaptateur objet S3 compatible, sans dépendance à un fournisseur précis. Il utilise AWS Signature Version 4 pour les opérations PUT, GET et DELETE. Le stockage local reste le choix par défaut en développement et en test.
+
+### Configuration
+
+En production, `STORAGE_DRIVER=s3` est obligatoire. Configurer les variables suivantes dans le gestionnaire de secrets de l'hébergeur (ne jamais les committer) :
+
+- `STORAGE_DRIVER=s3`
+- `S3_ENDPOINT=https://<endpoint-du-fournisseur>`
+- `S3_REGION=<region-du-fournisseur>` (certains fournisseurs S3 compatibles demandent `auto`)
+- `S3_BUCKET=<nom-du-bucket>`
+- `S3_ACCESS_KEY_ID=<identifiant>`
+- `S3_SECRET_ACCESS_KEY=<secret>`
+- `S3_SESSION_TOKEN=<jeton-temporaire>` uniquement si le fournisseur utilise des identifiants temporaires.
+
+Le endpoint doit être HTTPS en production. Le bucket doit être privé : ne pas activer l'accès anonyme, l'hébergement public ou une politique autorisant les lectures publiques. L'API signe chaque requête côté serveur ; aucune clé S3 n'est envoyée au navigateur. Accorder au compte technique uniquement les droits nécessaires sur le bucket (lecture, écriture et suppression d'objets), sans droits d'administration du compte fournisseur.
+
+### Séparation et accès
+
+- Les images de candidats, logos et bannières restent publiques via `GET /media/:key`, après vérification en base que leur visibilité est `public`.
+- Les pièces KYC sont stockées dans le même bucket privé, avec visibilité `private`. Elles ne passent jamais par la route publique ; leur consultation passe par `GET /admin/files/:key`, réservée aux administrateurs et journalisée.
+- Les clés sont générées par le serveur et limitées à un format strict ; aucun chemin fourni par le client n'est utilisé.
+- Si l'insertion des métadonnées PostgreSQL échoue après l'envoi de l'objet, l'API tente de supprimer l'objet pour éviter un fichier orphelin.
+
+### Migration et exploitation
+
+Le changement d'adaptateur ne migre pas automatiquement les fichiers du disque local vers S3. Avant de basculer une instance existante, copier les objets locaux dans le bucket en conservant exactement leurs clés, puis vérifier leur présence et leur intégrité. Effectuer cette migration hors ligne ou avec une procédure de double écriture contrôlée afin de ne pas perdre les téléversements réalisés pendant la copie. Ne pas supprimer le dossier local avant rapprochement complet des clés de la table `uploads`.
+
+Activer le chiffrement au repos côté fournisseur, le versioning ou une sauvegarde indépendante, la journalisation des accès administratifs et une politique de rétention adaptée aux pièces KYC. Définir explicitement les règles de suppression des objets lors de la suppression d'un compte ou à l'expiration de la durée légale de conservation. Les sauvegardes doivent être testées par restauration.
+
+Avant l'ouverture publique, tester depuis la préproduction le téléversement et la lecture d'une image publique, le refus d'accès public à une pièce KYC, la lecture KYC par un administrateur, la suppression, les erreurs de permissions et le comportement en cas d'indisponibilité du fournisseur. Le simple démarrage de l'API ne prouve pas que les identifiants ont les bons droits ni que le bucket est joignable.
 
 ## Sécurité des remboursements
 
