@@ -6,14 +6,38 @@ import { HttpError } from './http.js';
 // ============ SMS ============
 export interface SmsProvider { send(to: string, message: string): Promise<void>; }
 
-/** Développement : écrit le SMS dans la console. À remplacer par un fournisseur couvrant MTN / Orange / Camtel / Nexttel. */
+/** SMSPro : API REST. Un HTTP 2xx signifie accepté par la passerelle, pas livré au téléphone. */
+class SmsProProvider implements SmsProvider {
+  async send(to: string, message: string): Promise<void> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch(`${config.SMSPRO_API_BASE_URL.replace(/\/$/, '')}/api/v1/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${config.SMSPRO_API_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ to, message, from: config.SMSPRO_SENDER_ID }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        console.error('[SMSPRO] delivery request rejected', response.status);
+        throw new HttpError(503, response.status === 402 ? 'Solde SMS insuffisant chez le fournisseur' : 'Impossible d’envoyer le SMS pour le moment', response.status === 402 ? 'sms_balance_insufficient' : 'sms_delivery_failed');
+      }
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+      console.error('[SMSPRO] network request failed', error instanceof Error ? error.name : 'unknown');
+      throw new HttpError(503, 'Service SMS temporairement indisponible', 'sms_provider_unavailable');
+    } finally { clearTimeout(timeout); }
+  }
+}
+
+/** Développement : simulation sans divulguer le code dans les journaux de test. */
 class ConsoleSms implements SmsProvider {
   async send(to: string, message: string) {
     if (isProd) throw new Error('Aucun fournisseur SMS réel n’est configuré : envoi désactivé en production.');
     if (!isTest) console.log(`[SMS → ${to}] ${message}`);
   }
 }
-export const sms: SmsProvider = new ConsoleSms();
+export const sms: SmsProvider = config.SMS_PROVIDER === 'smspro' ? new SmsProProvider() : new ConsoleSms();
 
 
 export interface EmailMessage { to: string; subject: string; text: string; }

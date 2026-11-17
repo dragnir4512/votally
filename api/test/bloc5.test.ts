@@ -55,10 +55,10 @@ async function approvedKyc(creator: { agent: request.Agent; userId: string }, ad
   return k.body.kyc.id as string;
 }
 async function payout(agent: request.Agent, amountXaf: number, code?: string) {
-  const otp = await agent.post('/payouts/otp').send({});
+  const otp = await agent.post('/payouts/otp').send({ amountXaf, channel: 'email' });
   expect(otp.status, JSON.stringify(otp.body)).toBe(200);
   await q(`UPDATE otp_codes SET created_at = created_at - interval '2 minutes', expires_at = expires_at - interval '2 minutes' WHERE purpose = 'payout'`);   // évite le délai anti-spam entre deux codes
-  return agent.post('/payouts').send({ amountXaf, code: code ?? otp.body.devCode });
+  return agent.post('/payouts').send({ amountXaf, code: code ?? otp.body.devCode, challenge: otp.body.challenge });
 }
 
 describe('Photos', () => {
@@ -170,7 +170,7 @@ describe('Retraits', () => {
     await q(`UPDATE contests SET closed_at = now() - interval '80 hours' WHERE id = $1`, [c1.id]);
     expect((await creator.agent.get('/me/balance')).body.balance.withdrawableXaf).toBe(5520);
 
-    expect((await creator.agent.post('/payouts/otp').send({})).body.error.code).toBe('kyc_required');            // pas de retrait sans identité vérifiée
+    expect((await creator.agent.post('/payouts/otp').send({ amountXaf: 5000, channel: 'email' })).body.error.code).toBe('kyc_required'); // KYC vérifié avant l'envoi du code
     await approvedKyc(creator, admin);
     expect((await creator.agent.get('/payouts/quote?amountXaf=5000')).body).toEqual({ amountXaf: 5000, feeXaf: 100, netXaf: 4900 });
 

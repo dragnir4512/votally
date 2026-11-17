@@ -16,6 +16,10 @@ const schema = z.object({
   // Frais de transaction estimés (points de base) affichés au votant. 250 = 2,5 %. À remplacer par le barème réel de l'agrégateur.
   FEE_RATE_BPS: z.coerce.number().int().min(0).max(1000).default(250),
   PAYMENT_PROVIDER: z.enum(['mock', 'notchpay']).default('mock'),
+  SMS_PROVIDER: z.enum(['console', 'smspro']).default('console'),
+  SMSPRO_API_BASE_URL: z.string().url().default('https://v2.smspro.cm'),
+  SMSPRO_API_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  SMSPRO_SENDER_ID: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).max(11).optional()),
   MOCK_WEBHOOK_SECRET: z.string().min(8).default('mock-secret-change-me'),
     // --- Notch Pay : paiements entrants ---
   NOTCHPAY_PUBLIC_KEY: z.string().min(1).optional(),
@@ -56,6 +60,12 @@ const schema = z.object({
   }
   if (!!data.RESEND_API_KEY !== !!data.EMAIL_FROM) {
     ctx.addIssue({ code: 'custom', path: ['EMAIL_FROM'], message: 'RESEND_API_KEY et EMAIL_FROM doivent être configurés ensemble' });
+  }
+  if (data.SMS_PROVIDER === 'smspro' && (!data.SMSPRO_API_KEY || !data.SMSPRO_SENDER_ID)) {
+    ctx.addIssue({ code: 'custom', path: ['SMSPRO_API_KEY'], message: 'SMSPRO_API_KEY et SMSPRO_SENDER_ID sont obligatoires lorsque SMS_PROVIDER=smspro' });
+  }
+  if (data.NODE_ENV === 'production' && data.SMS_PROVIDER !== 'smspro') {
+    ctx.addIssue({ code: 'custom', path: ['SMS_PROVIDER'], message: 'En production, SMS_PROVIDER=smspro est obligatoire' });
   }
   if (data.PAYMENT_PROVIDER === 'notchpay') {
     const requiredKeys = [

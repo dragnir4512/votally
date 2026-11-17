@@ -28,7 +28,8 @@ export async function api<T>(path: string, init: {
   try {
     res = await send();
     const excluded = ['/auth/login', '/auth/register', '/auth/verify', '/auth/refresh', '/auth/logout'];
-    if (res.status === 401 && !excluded.includes(path) && await renewSession()) res = await send();
+    const isAuthFlow = excluded.some((prefix) => path === prefix || path.startsWith(prefix + '/'));
+    if (res.status === 401 && !isAuthFlow && await renewSession()) res = await send();
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur réseau inconnue';
     throw new ApiError(`Impossible de joindre le serveur VOTALLY : ${message}`, 'network_error', 0);

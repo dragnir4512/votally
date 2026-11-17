@@ -6,8 +6,7 @@ import { api, ApiError } from '../../lib/client';
 
 export default function MotDePasseOublie() {
   const router = useRouter();
-  const [channel, setChannel] = useState<'email' | 'phone'>('email');
-  const [contact, setContact] = useState('');
+  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [devCode, setDevCode] = useState('');
@@ -15,11 +14,10 @@ export default function MotDePasseOublie() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const target = () => ({ [channel]: contact.trim() });
   const requestCode = async (e?: React.FormEvent) => {
     e?.preventDefault(); setBusy(true); setError(''); setMessage('');
     try {
-      const r = await api<{ message: string; devCode?: string }>('/auth/password/forgot', { body: target() });
+      const r = await api<{ message: string; devCode?: string }>('/auth/password/forgot', { body: { email: email.trim() } });
       setMessage(r.message); setDevCode(r.devCode ?? ''); setStep('reset');
     } catch (err) { setError(err instanceof ApiError ? err.message : 'Impossible de demander un code.'); }
     finally { setBusy(false); }
@@ -27,7 +25,7 @@ export default function MotDePasseOublie() {
   const reset = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      await api('/auth/password/reset', { body: { ...target(), code, newPassword } });
+      await api('/auth/password/reset', { body: { email: email.trim(), code, newPassword } });
       router.replace('/connexion?reset=1');
     } catch (err) { setError(err instanceof ApiError ? err.message : 'La réinitialisation a échoué.'); }
     finally { setBusy(false); }
@@ -36,11 +34,10 @@ export default function MotDePasseOublie() {
     <a className="auth-brand" href="/"><span className="brand-mark">V</span> VOTALLY</a>
     {step === 'request' ? <form className="panel auth-card" onSubmit={requestCode}>
       <span className="auth-eyebrow">RÉCUPÉRATION DU COMPTE</span><h1>Mot de passe oublié ?</h1>
-      <p className="auth-intro">Recevez un code de récupération sur le contact vérifié associé à votre compte.</p>
-      <div className="tabs"><button type="button" className={channel === 'email' ? 'on' : ''} onClick={() => setChannel('email')}>Email</button><button type="button" className={channel === 'phone' ? 'on' : ''} onClick={() => setChannel('phone')}>Téléphone</button></div>
-      <label className="field"><span>{channel === 'email' ? 'Adresse email' : 'Numéro de téléphone'}</span><input className="input" required type={channel === 'email' ? 'email' : 'tel'} value={contact} onChange={(e) => setContact(e.target.value)} placeholder={channel === 'email' ? 'vous@exemple.com' : '690000000'} /></label>
+      <p className="auth-intro">Le code de récupération est envoyé uniquement à l’adresse email vérifiée de ton compte.</p>
+      <label className="field"><span>Adresse email</span><input className="input" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vous@exemple.com" /></label>
       {error && <p className="error" role="alert">{error}</p>}
-      <button className="btn btn-primary block" type="submit" disabled={busy || !contact.trim()}>{busy ? 'Envoi…' : 'Recevoir un code'}</button>
+      <button className="btn btn-primary block" type="submit" disabled={busy || !email.trim()}>{busy ? 'Envoi…' : 'Recevoir un code par email'}</button>
       <p className="center small"><Link href="/connexion">Retour à la connexion</Link></p>
     </form> : <form className="panel auth-card" onSubmit={reset}>
       <span className="auth-eyebrow">NOUVEAU MOT DE PASSE</span><h1>Réinitialisez votre accès.</h1>

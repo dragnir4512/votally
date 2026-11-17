@@ -76,6 +76,8 @@ export function createApp() {
   // Les limites sont différenciées selon le coût et le risque de chaque opération.
   app.use('/auth', (_req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
   app.use('/auth/login', limiter(5, 15 * 60_000, 'auth-login'));
+  app.use('/auth/login/send-code', limiter(3, 15 * 60_000, 'auth-login-send-code'));
+  app.use('/auth/login/verify', limiter(8, 15 * 60_000, 'auth-login-verify'));
   app.use('/auth/register', limiter(5, 60 * 60_000, 'auth-register'));
   app.use('/auth/verify', limiter(10, 15 * 60_000, 'auth-verify'));
   app.use('/auth/resend-code', limiter(3, 15 * 60_000, 'auth-resend'));
@@ -87,8 +89,11 @@ export function createApp() {
   app.use('/contests', limiter(300, 60_000, 'contests-global'), contestsRouter);
   app.use('/media', limiter(600, 60_000, 'media-global'), mediaRouter);
   app.use('/me/kyc/documents', limiter(20, 60_000, 'kyc-documents'));
+  app.use('/payouts/otp', limiter(3, 15 * 60_000, 'payouts-otp'));
   app.use('/payouts', limiter(20, 60_000, 'payouts'));
   app.use('/admin', limiter(300, 60_000, 'admin-global'), adminRouter);
+  app.use('/me/contacts/challenge', limiter(3, 15 * 60_000, 'contact-challenge'));
+  app.use('/me/contacts/verify', limiter(8, 15 * 60_000, 'contact-verify'));
   app.use(limiter(300, 60_000, 'account-global'), accountRouter);          // /me/kyc, /me/balance, /payouts
   app.use('/public/contests/:slug/otp', limiter(5, 60_000, 'public-otp'));
   app.use('/public/contests/:slug/votes', limiter(20, 60_000, 'public-votes'));
