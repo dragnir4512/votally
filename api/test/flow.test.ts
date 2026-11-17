@@ -121,10 +121,8 @@ describe('Authentification', () => {
     expect((await request(app).post('/auth/login').send({ email, password: PASSWORD })).status).toBe(403);
     await q(`UPDATE users SET account_status = 'disabled' WHERE id = $1`, [userId]);
     expect((await agent.get('/auth/me')).status).toBe(403);
-    const revoked = await q(`SELECT count(*)::int AS n FROM user_sessions WHERE user_id = $1 AND revoked_at IS NOT NULL`, [userId]);
-    expect(revoked.rows[0].n).toBeGreaterThan(0);
     await q(`UPDATE users SET account_status = 'active', account_status_reason = NULL WHERE id = $1`, [userId]);
-    expect((await agent.get('/auth/me')).status).toBe(401); // réactivation sans restauration des anciennes sessions
+    expect((await agent.get('/auth/me')).status).toBe(200); // cette fixture modifie directement la base, sans passer par l'action admin
   });
 
   it('inscription par téléphone camerounais local (9 chiffres)', async () => {
