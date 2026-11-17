@@ -28,10 +28,32 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:3001'),
   RESEND_API_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
   EMAIL_FROM: z.preprocess((v) => v === '' ? undefined : v, z.string().min(3).optional()),
-  // Dossier des fichiers téléversés (développement / serveur unique). En production : stockage objet S3 (voir storage.ts).
+  // Stockage objet compatible S3. Les secrets ne doivent jamais être versionnés.
+  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  S3_ENDPOINT: z.preprocess((v) => v === '' ? undefined : v, z.string().url().optional()),
+  S3_REGION: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  S3_BUCKET: z.preprocess((v) => v === '' ? undefined : v, z.string().min(3).max(63).optional()),
+  S3_ACCESS_KEY_ID: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  S3_SECRET_ACCESS_KEY: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  S3_SESSION_TOKEN: z.preprocess((v) => v === '' ? undefined : v, z.string().min(1).optional()),
+  // Dossier des fichiers téléversés (développement / tests uniquement).
   UPLOAD_DIR: z.string().default('./uploads'),
 }).superRefine((data, ctx) => {
   if (data.NODE_ENV === 'production') {
+    if (data.STORAGE_DRIVER !== 's3') {
+      ctx.addIssue({ code: 'custom', path: ['STORAGE_DRIVER'], message: 'STORAGE_DRIVER=s3 est obligatoire en production' });
+    }
+    const s3Values = [data.S3_ENDPOINT, data.S3_REGION, data.S3_BUCKET, data.S3_ACCESS_KEY_ID, data.S3_SECRET_ACCESS_KEY];
+    if (s3Values.some((value) => !value)) {
+      ctx.addIssue({ code: 'custom', path: ['S3_ENDPOINT'], message: 'S3_ENDPOINT, S3_REGION, S3_BUCKET, S3_ACCESS_KEY_ID et S3_SECRET_ACCESS_KEY sont obligatoires en production' });
+    }
+    if (data.S3_ENDPOINT) {
+      try {
+        if (new URL(data.S3_ENDPOINT).protocol !== 'https:') throw new Error('HTTPS requis');
+      } catch {
+        ctx.addIssue({ code: 'custom', path: ['S3_ENDPOINT'], message: 'Le endpoint S3 doit être une URL HTTPS valide en production' });
+      }
+    }
     if (data.JWT_SECRET.length < 32) {
       ctx.addIssue({ code: 'custom', path: ['JWT_SECRET'], message: '32 caractères minimum en production' });
     }
