@@ -62,7 +62,7 @@ describe('Authentification', () => {
 
     const sent = await request(app).post('/auth/login/send-code').send({ challenge: login.body.challenge, channel: 'email' });
     expect(sent.status).toBe(200);
-    expect(sent.body.devCode).toMatch(/^\\d{6}$/);
+    expect(sent.body.devCode).toMatch(/^\d{6}$/);
 
     const verified = await request(app).post('/auth/login/verify').send({
       challenge: login.body.challenge, channel: 'email', code: sent.body.devCode,
@@ -89,7 +89,7 @@ describe('Authentification', () => {
 
     const recovery = await request(app).post('/auth/password/forgot').send({ phone });
     expect(recovery.status).toBe(200);
-    expect(recovery.body.devCode).toMatch(/^\\d{6}$/);
+    expect(recovery.body.devCode).toMatch(/^\d{6}$/);
 
     const reset = await request(app).post('/auth/password/reset').send({
       phone, code: recovery.body.devCode, newPassword: 'NouveauMot2',
