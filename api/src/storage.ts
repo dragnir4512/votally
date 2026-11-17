@@ -59,7 +59,7 @@ export class S3Storage implements Storage {
     if (!KEY.test(key)) throw new Error('Clé de fichier invalide');
     const url = new URL(this.endpoint);
     const prefix = url.pathname.replace(/\/$/, '');
-    url.pathname = \`${prefix}/${awsEncode(this.options.bucket)}/${awsEncode(key)}\`;
+    url.pathname = `${prefix}/${awsEncode(this.options.bucket)}/${awsEncode(key)}`;
     const date = amzDate(new Date());
     const payloadHash = sha256(data ?? '');
     const headers: Record<string, string> = {
@@ -69,16 +69,16 @@ export class S3Storage implements Storage {
     };
     if (this.options.sessionToken) headers['x-amz-security-token'] = this.options.sessionToken;
     const signedHeaders = Object.keys(headers).sort().join(';');
-    const canonicalHeaders = Object.keys(headers).sort().map((name) => \`${name}:${headers[name]!.trim()}\n\`).join('');
+    const canonicalHeaders = Object.keys(headers).sort().map((name) => `${name}:${headers[name]!.trim()}\n`).join('');
     const canonicalRequest = [method, url.pathname, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
-    const scope = \`${date.slice(0, 8)}/${this.options.region}/s3/aws4_request\`;
+    const scope = `${date.slice(0, 8)}/${this.options.region}/s3/aws4_request`;
     const stringToSign = ['AWS4-HMAC-SHA256', date, scope, sha256(canonicalRequest)].join('\n');
     const dateKey = hmac('AWS4' + this.options.secretAccessKey, date.slice(0, 8));
     const regionKey = hmac(dateKey, this.options.region);
     const serviceKey = hmac(regionKey, 's3');
     const signingKey = hmac(serviceKey, 'aws4_request');
     const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
-    headers.authorization = \`AWS4-HMAC-SHA256 Credential=${this.options.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}\`;
+    headers.authorization = `AWS4-HMAC-SHA256 Credential=${this.options.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
     if (data) headers['content-length'] = String(data.length);
     const requestHeaders = { ...headers };
     delete requestHeaders.host; // fetch définit Host depuis l'URL ; sa valeur est néanmoins signée ci-dessus.
@@ -87,19 +87,19 @@ export class S3Storage implements Storage {
 
   async put(key: string, data: Buffer) {
     const response = await this.send('PUT', key, data);
-    if (!response.ok) throw new Error(\`Échec du stockage S3 (HTTP ${response.status}).\`);
+    if (!response.ok) throw new Error(`Échec du stockage S3 (HTTP ${response.status}).`);
   }
 
   async get(key: string): Promise<Buffer | null> {
     const response = await this.send('GET', key);
     if (response.status === 404) return null;
-    if (!response.ok) throw new Error(\`Échec de lecture S3 (HTTP ${response.status}).\`);
+    if (!response.ok) throw new Error(`Échec de lecture S3 (HTTP ${response.status}).`);
     return Buffer.from(await response.arrayBuffer());
   }
 
   async delete(key: string) {
     const response = await this.send('DELETE', key);
-    if (!response.ok && response.status !== 404) throw new Error(\`Échec de suppression S3 (HTTP ${response.status}).\`);
+    if (!response.ok && response.status !== 404) throw new Error(`Échec de suppression S3 (HTTP ${response.status}).`);
   }
 }
 
