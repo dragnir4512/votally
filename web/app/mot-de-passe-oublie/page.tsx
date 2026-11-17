@@ -6,7 +6,7 @@ import { api, ApiError } from '../../lib/client';
 
 export default function MotDePasseOublie() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [devCode, setDevCode] = useState('');
@@ -17,7 +17,7 @@ export default function MotDePasseOublie() {
   const requestCode = async (e?: React.FormEvent) => {
     e?.preventDefault(); setBusy(true); setError(''); setMessage('');
     try {
-      const r = await api<{ message: string; devCode?: string }>('/auth/password/forgot', { body: { email: email.trim() } });
+      const r = await api<{ message: string; devCode?: string }>('/auth/password/forgot', { body: identifier.trim().includes('@') ? { email: identifier.trim() } : { phone: identifier.trim() } });
       setMessage(r.message); setDevCode(r.devCode ?? ''); setStep('reset');
     } catch (err) { setError(err instanceof ApiError ? err.message : 'Impossible de demander un code.'); }
     finally { setBusy(false); }
@@ -25,7 +25,7 @@ export default function MotDePasseOublie() {
   const reset = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      await api('/auth/password/reset', { body: { email: email.trim(), code, newPassword } });
+      await api('/auth/password/reset', { body: { ...(identifier.trim().includes('@') ? { email: identifier.trim() } : { phone: identifier.trim() }), code, newPassword } });
       router.replace('/connexion?reset=1');
     } catch (err) { setError(err instanceof ApiError ? err.message : 'La réinitialisation a échoué.'); }
     finally { setBusy(false); }
@@ -34,10 +34,10 @@ export default function MotDePasseOublie() {
     <a className="auth-brand" href="/"><span className="brand-mark">V</span> VOTALLY</a>
     {step === 'request' ? <form className="panel auth-card" onSubmit={requestCode}>
       <span className="auth-eyebrow">RÉCUPÉRATION DU COMPTE</span><h1>Mot de passe oublié ?</h1>
-      <p className="auth-intro">Le code de récupération est envoyé uniquement à l’adresse email vérifiée de ton compte.</p>
-      <label className="field"><span>Adresse email</span><input className="input" required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vous@exemple.com" /></label>
+      <p className="auth-intro">Le code est envoyé à l’adresse email ou au numéro de téléphone vérifié associé à ton compte.</p>
+      <label className="field"><span>Email ou numéro de téléphone</span><input className="input" required type="text" autoComplete="username" value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="vous@exemple.com ou +237 6…" /></label>
       {error && <p className="error" role="alert">{error}</p>}
-      <button className="btn btn-primary block" type="submit" disabled={busy || !email.trim()}>{busy ? 'Envoi…' : 'Recevoir un code par email'}</button>
+      <button className="btn btn-primary block" type="submit" disabled={busy || !identifier.trim()}>{busy ? 'Envoi…' : 'Recevoir un code par email'}</button>
       <p className="center small"><Link href="/connexion">Retour à la connexion</Link></p>
     </form> : <form className="panel auth-card" onSubmit={reset}>
       <span className="auth-eyebrow">NOUVEAU MOT DE PASSE</span><h1>Réinitialisez votre accès.</h1>
