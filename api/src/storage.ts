@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { config } from './config.js';
+import { config, isProd } from './config.js';
 
 /** Stockage de fichiers. Implémentation disque pour le développement et un serveur unique ;
  *  en production, écrire un adaptateur S3 / stockage objet avec la même interface. */
@@ -18,6 +18,12 @@ class LocalStorage implements Storage {
   async get(key: string) {
     try { return await readFile(this.file(key)); } catch (e: any) { if (e.code === 'ENOENT') return null; throw e; }
   }
+}
+
+// Le disque local est éphémère/non partagé sur les déploiements multi-instances.
+ // Ne jamais démarrer en production tant qu'un stockage objet durable avec accès privé KYC n'est pas branché.
+if (isProd) {
+  throw new Error('Stockage fichiers indisponible en production : intégrer un adaptateur S3/objet avant le déploiement.');
 }
 
 export const storage: Storage = new LocalStorage(path.resolve(config.UPLOAD_DIR));
