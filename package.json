@@ -7,7 +7,7 @@
     "db:up": "docker compose up -d db",
     "db:migrate": "node scripts/migrate.js up",
     "db:status": "node scripts/migrate.js status",
-    "db:test": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f db/tests/invariants.sql",
+    "db:test": "node scripts/db-test.mjs",
     "api:install": "npm --prefix api install",
     "api:dev": "npm --prefix api run dev",
     "api:test": "npm --prefix api test",

@@ -43,6 +43,9 @@ export const sms: SmsProvider = config.SMS_PROVIDER === 'smspro' ? new SmsProPro
 export interface EmailMessage { to: string; subject: string; text: string; }
 export const email = {
   async send(message: EmailMessage): Promise<void> {
+    // Aucun appel réseau vers Resend pendant les tests.
+    if (isTest) return;
+
     if (!config.RESEND_API_KEY || !config.EMAIL_FROM) {
       if (isProd) throw new HttpError(503, 'Envoi des emails indisponible pour le moment', 'email_unavailable');
       if (!isTest) console.log(`[EMAIL → ${message.to}] ${message.subject}\n${message.text}`);
