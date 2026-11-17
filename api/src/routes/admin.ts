@@ -57,6 +57,14 @@ async function changeAccountStatus(userId: string, actorId: string, status: 'act
         WHERE id = $1
         RETURNING id, email, phone, full_name, role, account_status, account_status_reason, account_status_changed_at`,
       [userId, status, reason]);
+    if (status !== 'active') {
+      await c.query(
+        `UPDATE user_sessions
+            SET revoked_at = COALESCE(revoked_at, now()),
+                revoke_reason = COALESCE(revoke_reason, 'account_' || $2)
+          WHERE user_id = $1 AND revoked_at IS NULL`,
+        [userId, status]);
+    }
     return updated.rows[0];
   });
 }
