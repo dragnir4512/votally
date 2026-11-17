@@ -50,6 +50,10 @@ Appliquer `db/migrations/019_api_rate_limits.sql` avant de déployer cette versi
 
 Aucun fournisseur réel de décaissement Mobile Money n'est actuellement intégré. Le fournisseur de retrait simulé est réservé au développement et aux tests. Avant le déploiement de cette protection, contrôler les retraits historiques dont `provider = 'mock'` et `status = 'succeeded'` : ils ne prouvent pas qu'un transfert réel a été effectué et doivent être rapprochés manuellement avec les relevés du fournisseur. En production, les routes de devis, de confirmation OTP et de demande de retrait échouent volontairement avec `payout_provider_unavailable`. Ne pas réactiver les retraits avant l'intégration et les tests réels d'un fournisseur de décaissement, avec vérification serveur du statut, idempotence et rapprochement des transactions.
 
+## Comptabilisation des frais de retrait
+
+La migration `022_fix_payout_ledger_fee_split.sql` corrige la fonction `complete_payout` : le compte du créateur est débité du montant brut, le compte de transit est crédité du montant net réellement transféré et les frais retenus sont isolés dans `LIABILITY:PROVIDER_FEES`. Les écritures historiques restent immuables ; tout retrait déjà comptabilisé avec l'ancienne règle doit être rapproché des relevés réels et corrigé par une écriture comptable inverse/rectificative contrôlée, jamais par modification directe du grand livre.
+
 ## Stockage des fichiers et pièces KYC
 
 L'implémentation actuelle utilise le disque local et convient au développement ou à un serveur unique persistant. Elle ne constitue pas un stockage de production multi-instances : l'API refuse désormais de démarrer avec `NODE_ENV=production` tant qu'un adaptateur de stockage objet durable n'est pas intégré. Cet adaptateur devra préserver la séparation public/privé, l'accès administrateur journalisé aux pièces KYC, le chiffrement au repos, les politiques de rétention et les sauvegardes.
