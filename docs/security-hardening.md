@@ -42,13 +42,13 @@ Appliquer `db/migrations/019_api_rate_limits.sql` avant de déployer cette versi
 
 1. Définir `NODE_ENV=production`, des secrets aléatoires distincts et longs, les origines HTTPS réelles et `TRUST_PROXY_HOPS`.
 2. Configurer Resend pour les inscriptions et récupérations par email.
-3. Le fournisseur SMS actuel est volontairement limité à la console en développement et refuse l'envoi en production. L'inscription et la récupération par téléphone nécessitent donc l'intégration d'un fournisseur SMS réel avant d'activer ces parcours.
+3. Le fournisseur SMS SmsPro doit être configuré et testé en production (MTN et Orange). Une réponse HTTP acceptée ne prouve pas la livraison au téléphone ; suivre les identifiants et accusés de réception du fournisseur.
 4. Les limites de débit sont partagées par PostgreSQL. Il faut surveiller la taille de la table et vérifier que le nettoyage périodique s'exécute.
 5. Les tests de sécurité et la suite API globale restent à exécuter lors du bloc final de validation.
 
 ## Retraits en production — fournisseur non disponible
 
-Aucun fournisseur réel de décaissement Mobile Money n'est actuellement intégré. Le fournisseur de retrait simulé est réservé au développement et aux tests. En production, les routes de devis, de confirmation OTP et de demande de retrait échouent volontairement avec `payout_provider_unavailable`. Ne pas réactiver les retraits avant l'intégration et les tests réels d'un fournisseur de décaissement, avec vérification serveur du statut, idempotence et rapprochement des transactions.
+Aucun fournisseur réel de décaissement Mobile Money n'est actuellement intégré. Le fournisseur de retrait simulé est réservé au développement et aux tests. Avant le déploiement de cette protection, contrôler les retraits historiques dont `provider = 'mock'` et `status = 'succeeded'` : ils ne prouvent pas qu'un transfert réel a été effectué et doivent être rapprochés manuellement avec les relevés du fournisseur. En production, les routes de devis, de confirmation OTP et de demande de retrait échouent volontairement avec `payout_provider_unavailable`. Ne pas réactiver les retraits avant l'intégration et les tests réels d'un fournisseur de décaissement, avec vérification serveur du statut, idempotence et rapprochement des transactions.
 
 ## Révocation des sessions
 
