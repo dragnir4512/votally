@@ -264,6 +264,42 @@ describe('Administration : remboursements, fraude, tableau de bord', () => {
     expect((await admin.agent.get('/admin/refunds')).body.items.some((x: any) => x.id === item.id)).toBe(false);
   });
 
+  it('refuse de rembourser un paiement échoué qui n’a jamais été encaissé', async () => {
+    const creator = await signup();
+    const admin = await signup('admin');
+    const c = await paidContest(creator.agent);
+    const order = await request(app).post(`/public/contests/${c.slug}/orders`)
+      .send({ method: 'mtn_momo', phone: '677000444', choices: [{ candidateId: c.cands[0]!.id, quantity: 2 }] });
+    expect(order.status).toBe(201);
+
+    const payment = (await q(
+      `SELECT p.id, p.provider_reference
+         FROM payments p JOIN vote_orders o ON o.id = p.order_id
+        WHERE o.reference = $1`,
+      [order.body.reference],
+    )).rows[0];
+
+    mockProvider.setStatus(payment.provider_reference, 'failed');
+    const event = { eventId: 'failed-' + rnd(), providerReference: payment.provider_reference };
+    const raw = Buffer.from(JSON.stringify(event));
+    const webhook = await request(app).post('/webhooks/mock')
+      .set('content-type', 'application/json')
+      .set('x-signature', mockProvider.sign(raw.toString('utf8')))
+      .send(raw);
+    expect(webhook.status, JSON.stringify(webhook.body)).toBe(200);
+
+    const refund = await admin.agent.post(`/admin/payments/${payment.id}/refund`)
+      .send({ reason: 'Tentative de remboursement invalide' });
+    expect(refund.status).toBe(422);
+    expect(refund.body.error.code).toBe('business_rule');
+    const stored = (await q('SELECT status FROM payments WHERE id = $1', [payment.id])).rows[0];
+    expect(stored.status).toBe('failed');
+    expect((await q(
+      `SELECT count(*)::int AS n FROM ledger_transactions WHERE idempotency_key = $1`,
+      ['refund:' + payment.id],
+    )).rows[0].n).toBe(0);
+  });
+
   it('vue d\'ensemble et alertes de fraude', async () => {
     const creator = await signup(); const admin = await signup('admin');
     const c = await paidContest(creator.agent);
