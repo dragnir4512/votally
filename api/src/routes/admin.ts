@@ -130,7 +130,10 @@ adminRouter.post('/kyc/:id/reject', ah(async (req, res) => {
 adminRouter.get('/files/:key', ah(async (req, res) => {
   const key = req.params.key as string;
   if (!isValidKey(key)) throw new HttpError(404, 'Fichier introuvable', 'not_found');
-  const meta = (await q('SELECT content_type FROM uploads WHERE key = $1', [key])).rows[0];
+  const meta = (await q(
+    `SELECT content_type FROM uploads
+      WHERE key = $1 AND visibility = 'private' AND purpose IN ('kyc_id', 'kyc_org')`,
+    [key])).rows[0];
   const data = meta ? await storage.get(key) : null;
   if (!meta || !data) throw new HttpError(404, 'Fichier introuvable', 'not_found');
   await q(`SELECT audit($1, 'admin', 'file.view', 'upload', $2)`, [req.user!.id, key]);
