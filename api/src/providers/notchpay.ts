@@ -57,7 +57,7 @@ export const notchPayProvider: PaymentProvider = {
     return Math.ceil((subtotalXaf * config.FEE_RATE_BPS) / 10_000);
   },
 
-  async initiate({ reference, amountXaf, email, phone }) {
+  async initiate({ reference, amountXaf, email, phone, method }) {
     if (!email) {
       throw new Error('Une adresse e-mail est obligatoire pour Notch Pay.');
     }
@@ -80,6 +80,9 @@ export const notchPayProvider: PaymentProvider = {
           ...(phone ? { phone } : {}),
         },
         reference,
+        locked_currency: 'XAF',
+        locked_country: 'CM',
+        locked_channel: method === 'mtn_momo' ? 'cm.mtn' : 'cm.orange',
         callback: callbackUrl.toString(),
         description: `Paiement des votes VOTALLY - ${reference}`,
       }),
@@ -95,9 +98,11 @@ export const notchPayProvider: PaymentProvider = {
         ? getString(data.data.authorization_url)
         : undefined);
 
+    // Notch Pay's hosted-checkout response may omit the transaction object at initialization.
+    // The merchant reference sent above is also the reference accepted by GET /payments/{reference}.
     const providerReference = transaction
-      ? getString(transaction.reference) ?? getString(transaction.id)
-      : undefined;
+      ? getString(transaction.reference) ?? getString(transaction.id) ?? reference
+      : reference;
 
     if (!response.ok || !authorizationUrl || !providerReference) {
       throw new Error(
