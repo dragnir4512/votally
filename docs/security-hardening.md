@@ -83,6 +83,15 @@ Le endpoint doit être HTTPS en production. Le bucket doit être privé : ne pas
 
 Le changement d'adaptateur ne migre pas automatiquement les fichiers du disque local vers S3. Avant de basculer une instance existante, copier les objets locaux dans le bucket en conservant exactement leurs clés, puis vérifier leur présence et leur intégrité. Effectuer cette migration hors ligne ou avec une procédure de double écriture contrôlée afin de ne pas perdre les téléversements réalisés pendant la copie. Ne pas supprimer le dossier local avant rapprochement complet des clés de la table `uploads`.
 
+La migration est fournie par `api/src/scripts/migrate-storage.ts`. Depuis la racine du dépôt, avec la base configurée et le dossier local actuel disponible :
+
+```bash
+npm --prefix api run storage:migrate
+npm --prefix api run storage:migrate -- --apply
+```
+
+La première commande est une simulation (aucun transfert). La seconde copie les objets absents et vérifie chaque copie par SHA-256. Les objets déjà présents ne sont jamais écrasés ; en cas de divergence ou de fichier source manquant, le script s'arrête. Il ne supprime ni les fichiers locaux ni les lignes PostgreSQL. Faire une sauvegarde préalable de la base et du dossier d'uploads, puis exécuter la migration avant de basculer l'application sur S3.
+
 Activer le chiffrement au repos côté fournisseur, le versioning ou une sauvegarde indépendante, la journalisation des accès administratifs et une politique de rétention adaptée aux pièces KYC. Définir explicitement les règles de suppression des objets lors de la suppression d'un compte ou à l'expiration de la durée légale de conservation. Les sauvegardes doivent être testées par restauration.
 
 Avant l'ouverture publique, tester depuis la préproduction le téléversement et la lecture d'une image publique, le refus d'accès public à une pièce KYC, la lecture KYC par un administrateur, la suppression, les erreurs de permissions et le comportement en cas d'indisponibilité du fournisseur. Le simple démarrage de l'API ne prouve pas que les identifiants ont les bons droits ni que le bucket est joignable.
