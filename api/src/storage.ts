@@ -80,7 +80,9 @@ export class S3Storage implements Storage {
     const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
     headers.authorization = \`AWS4-HMAC-SHA256 Credential=${this.options.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}\`;
     if (data) headers['content-length'] = String(data.length);
-    return this.request(url, { method, headers, ...(data ? { body: new Uint8Array(data) } : {}) });
+    const requestHeaders = { ...headers };
+    delete requestHeaders.host; // fetch définit Host depuis l'URL ; sa valeur est néanmoins signée ci-dessus.
+    return this.request(url, { method, headers: requestHeaders, ...(data ? { body: new Uint8Array(data) } : {}) });
   }
 
   async put(key: string, data: Buffer) {
