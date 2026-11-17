@@ -149,7 +149,7 @@ authRouter.post('/password/forgot', ah(async (req, res) => {
   const target = body.email ?? normalizePhone(body.phone!);
   const field = channel === 'email' ? 'email' : 'phone';
   const verifiedColumn = channel === 'email' ? 'email_verified_at' : 'phone_verified_at';
-  const user = (await q(`SELECT id, \${verifiedColumn} AS verified, account_status FROM users WHERE \${field} = $1 AND deleted_at IS NULL`, [target])).rows[0];
+  const user = (await q(`SELECT id, ${verifiedColumn} AS verified, account_status FROM users WHERE ${field} = $1 AND deleted_at IS NULL`, [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') return res.json({ message: genericRecoveryMessage });
   let code: string;
   try { code = await withTx(null, (c) => issueOtp(c, 'password_reset', channel, target, req.ip)); }
@@ -165,7 +165,7 @@ authRouter.post('/password/reset', ah(async (req, res) => {
   const target = body.email ?? normalizePhone(body.phone!);
   const field = channel === 'email' ? 'email' : 'phone';
   const verifiedColumn = channel === 'email' ? 'email_verified_at' : 'phone_verified_at';
-  const user = (await q(`SELECT id, account_status, \${verifiedColumn} AS verified FROM users WHERE \${field} = $1 AND deleted_at IS NULL`, [target])).rows[0];
+  const user = (await q(`SELECT id, account_status, ${verifiedColumn} AS verified FROM users WHERE ${field} = $1 AND deleted_at IS NULL`, [target])).rows[0];
   if (!user || !user.verified || user.account_status !== 'active') throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   if (!(await consumeOtp('password_reset', target, body.code))) throw new HttpError(400, 'Code invalide ou expiré', 'invalid_code');
   const hash = await bcrypt.hash(body.newPassword, config.BCRYPT_COST);
