@@ -282,7 +282,7 @@ describe('Administration : remboursements, fraude, tableau de bord', () => {
     mockProvider.setStatus(payment.provider_reference, 'failed');
     const event = { eventId: 'failed-' + rnd(), providerReference: payment.provider_reference };
     const raw = Buffer.from(JSON.stringify(event));
-    const webhook = await request(app).post('/webhooks/mock')
+    const webhook = await request(app).post('/webhooks/payments/mock')
       .set('content-type', 'application/json')
       .set('x-signature', mockProvider.sign(raw.toString('utf8')))
       .send(raw);
