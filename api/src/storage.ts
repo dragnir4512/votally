@@ -9,11 +9,11 @@ export interface Storage {
   delete(key: string): Promise<void>;
 }
 
-const KEY = /^[a-f0-9]{32}\\.(webp|jpg|png|pdf)$/;
+const KEY = /^[a-f0-9]{32}\.(webp|jpg|png|pdf)$/;
 const sha256 = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
 const hmac = (key: Buffer | string, value: string) => createHmac('sha256', key).update(value).digest();
 const awsEncode = (value: string) => encodeURIComponent(value).replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase());
-const amzDate = (date: Date) => date.toISOString().replace(/[:-]|\\.\\d{3}/g, '');
+const amzDate = (date: Date) => date.toISOString().replace(/[:-]|\.\d{3}/g, '');
 
 export class LocalStorage implements Storage {
   constructor(private root: string) {}
@@ -58,11 +58,9 @@ export class S3Storage implements Storage {
   private async send(method: 'GET' | 'PUT' | 'DELETE', key: string, data?: Buffer): Promise<Response> {
     if (!KEY.test(key)) throw new Error('Clé de fichier invalide');
     const url = new URL(this.endpoint);
-    const prefix = url.pathname.replace(/\\/$/, '');
-    const objectPath = `${prefix}/${awsEncode(this.options.bucket)}/${awsEncode(key)}`;
-    url.pathname = objectPath;
-    const now = new Date();
-    const date = amzDate(now);
+    const prefix = url.pathname.replace(/\/$/, '');
+    url.pathname = \`\${prefix}/\${awsEncode(this.options.bucket)}/\${awsEncode(key)}\`;
+    const date = amzDate(new Date());
     const payloadHash = sha256(data ?? '');
     const headers: Record<string, string> = {
       host: url.host,
@@ -71,35 +69,35 @@ export class S3Storage implements Storage {
     };
     if (this.options.sessionToken) headers['x-amz-security-token'] = this.options.sessionToken;
     const signedHeaders = Object.keys(headers).sort().join(';');
-    const canonicalHeaders = Object.keys(headers).sort().map((name) => `${name}:${headers[name]!.trim()}\\n`).join('');
-    const canonicalRequest = [method, url.pathname, '', canonicalHeaders, signedHeaders, payloadHash].join('\\n');
-    const scope = `${date.slice(0, 8)}/${this.options.region}/s3/aws4_request`;
-    const stringToSign = ['AWS4-HMAC-SHA256', date, scope, sha256(canonicalRequest)].join('\\n');
+    const canonicalHeaders = Object.keys(headers).sort().map((name) => \`\${name}:\${headers[name]!.trim()}\n\`).join('');
+    const canonicalRequest = [method, url.pathname, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
+    const scope = \`\${date.slice(0, 8)}/\${this.options.region}/s3/aws4_request\`;
+    const stringToSign = ['AWS4-HMAC-SHA256', date, scope, sha256(canonicalRequest)].join('\n');
     const dateKey = hmac('AWS4' + this.options.secretAccessKey, date.slice(0, 8));
     const regionKey = hmac(dateKey, this.options.region);
     const serviceKey = hmac(regionKey, 's3');
     const signingKey = hmac(serviceKey, 'aws4_request');
     const signature = createHmac('sha256', signingKey).update(stringToSign).digest('hex');
-    headers.authorization = `AWS4-HMAC-SHA256 Credential=${this.options.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+    headers.authorization = \`AWS4-HMAC-SHA256 Credential=\${this.options.accessKeyId}/\${scope}, SignedHeaders=\${signedHeaders}, Signature=\${signature}\`;
     if (data) headers['content-length'] = String(data.length);
     return this.request(url, { method, headers, ...(data ? { body: new Uint8Array(data) } : {}) });
   }
 
   async put(key: string, data: Buffer) {
     const response = await this.send('PUT', key, data);
-    if (!response.ok) throw new Error(`Échec du stockage S3 (HTTP ${response.status}).`);
+    if (!response.ok) throw new Error(\`Échec du stockage S3 (HTTP \${response.status}).\`);
   }
 
   async get(key: string): Promise<Buffer | null> {
     const response = await this.send('GET', key);
     if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`Échec de lecture S3 (HTTP ${response.status}).`);
+    if (!response.ok) throw new Error(\`Échec de lecture S3 (HTTP \${response.status}).\`);
     return Buffer.from(await response.arrayBuffer());
   }
 
   async delete(key: string) {
     const response = await this.send('DELETE', key);
-    if (!response.ok && response.status !== 404) throw new Error(`Échec de suppression S3 (HTTP ${response.status}).`);
+    if (!response.ok && response.status !== 404) throw new Error(\`Échec de suppression S3 (HTTP \${response.status}).\`);
   }
 }
 
