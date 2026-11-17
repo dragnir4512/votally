@@ -53,6 +53,54 @@ describe('Authentification', () => {
   });
 
 
+  it('exige un OTP à la connexion, accepte le bon code une seule fois et refuse son rejeu', async () => {
+    const { email } = await signup();
+    const login = await request(app).post('/auth/login').send({ email, password: PASSWORD });
+    expect(login.status).toBe(200);
+    expect(login.body.requiresOtp).toBe(true);
+    expect(login.body.challenge).toBeTruthy();
+
+    const sent = await request(app).post('/auth/login/send-code').send({ challenge: login.body.challenge, channel: 'email' });
+    expect(sent.status).toBe(200);
+    expect(sent.body.devCode).toMatch(/^\\d{6}$/);
+
+    const verified = await request(app).post('/auth/login/verify').send({
+      challenge: login.body.challenge, channel: 'email', code: sent.body.devCode,
+    });
+    expect(verified.status).toBe(200);
+    expect(verified.body.user.email).toBe(email);
+
+    const replay = await request(app).post('/auth/login/verify').send({
+      challenge: login.body.challenge, channel: 'email', code: sent.body.devCode,
+    });
+    expect(replay.status).toBe(400);
+    expect(replay.body.error.code).toBe('invalid_code');
+  });
+
+  it('permet la récupération du mot de passe par téléphone vérifié', async () => {
+    const phone = '6' + String(Math.floor(Math.random() * 1e8)).padStart(8, '0');
+    const agent = request.agent(app);
+    const registered = await agent.post('/auth/register').send({
+      phone, password: PASSWORD, fullName: 'Récupération Téléphone', acceptTerms: true,
+    });
+    expect(registered.status).toBe(201);
+    const verified = await agent.post('/auth/verify').send({ phone, code: registered.body.devCode });
+    expect(verified.status).toBe(200);
+
+    const recovery = await request(app).post('/auth/password/forgot').send({ phone });
+    expect(recovery.status).toBe(200);
+    expect(recovery.body.devCode).toMatch(/^\\d{6}$/);
+
+    const reset = await request(app).post('/auth/password/reset').send({
+      phone, code: recovery.body.devCode, newPassword: 'NouveauMot2',
+    });
+    expect(reset.status).toBe(200);
+
+    const login = await request(app).post('/auth/login').send({ phone, password: 'NouveauMot2' });
+    expect(login.status).toBe(200);
+    expect(login.body.requiresOtp).toBe(true);
+  });
+
   it('expose un profil modifiable sans permettre de changer les coordonnées vérifiées ou le rôle', async () => {
     const { agent, email } = await signup();
     const initial = await agent.get('/me/profile');
@@ -73,8 +121,10 @@ describe('Authentification', () => {
     expect((await request(app).post('/auth/login').send({ email, password: PASSWORD })).status).toBe(403);
     await q(`UPDATE users SET account_status = 'disabled' WHERE id = $1`, [userId]);
     expect((await agent.get('/auth/me')).status).toBe(403);
+    const revoked = await q(`SELECT count(*)::int AS n FROM user_sessions WHERE user_id = $1 AND revoked_at IS NOT NULL`, [userId]);
+    expect(revoked.rows[0].n).toBeGreaterThan(0);
     await q(`UPDATE users SET account_status = 'active', account_status_reason = NULL WHERE id = $1`, [userId]);
-    expect((await agent.get('/auth/me')).status).toBe(200);
+    expect((await agent.get('/auth/me')).status).toBe(401); // réactivation sans restauration des anciennes sessions
   });
 
   it('inscription par téléphone camerounais local (9 chiffres)', async () => {
