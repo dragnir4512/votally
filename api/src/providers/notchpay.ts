@@ -134,15 +134,16 @@ export const notchPayProvider: PaymentProvider = {
       throw new Error('Notch Pay : domaine de paiement inattendu, redirection refusée.');
     }
 
-    // La documentation Notch Pay demande de vérifier GET /payments/{reference}.
-    // On conserve donc NOTRE référence métier envoyée dans POST /payments, jamais transaction.id.
+    // Notch Pay renvoie sa référence de transaction dans transaction.reference.
+    // C'est cette valeur que Verify et les webhooks utilisent ; la référence VOTALLY
+    // reste dans callback?order=... pour retrouver la commande locale.
     const transaction = getTransaction(data);
-    const returnedReference = transaction ? getString(transaction.reference) : undefined;
-    if (returnedReference && returnedReference !== reference) {
-      throw new Error('Notch Pay : la référence retournée ne correspond pas à la commande VOTALLY.');
+    const providerReference = transaction ? getString(transaction.reference) : undefined;
+    if (!providerReference) {
+      throw new Error('Notch Pay : référence de transaction absente de la réponse d’initialisation.');
     }
 
-    return { providerReference: reference, authorizationUrl };
+    return { providerReference, authorizationUrl };
   },
 
   async verify(providerReference: string): Promise<{ status: ProviderStatus; amountXaf?: number }> {
