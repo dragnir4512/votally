@@ -1,60 +1,78 @@
-
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
-import type {
-  PaymentProvider,
-  ProviderStatus,
-} from '../providers.js';
+import type { PaymentProvider, ProviderStatus } from '../providers.js';
 
 const API_BASE_URL = 'https://api.notchpay.co';
-
 type JsonObject = Record<string, unknown>;
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function getTransaction(data: unknown): JsonObject | null {
-  if (!isObject(data)) return null;
-
-  const payload = isObject(data.data) ? data.data : data;
-
-  // The current verification guide exposes the transaction as response.payment.
-  // Older hosted-checkout responses expose it as data.transaction.
-  if (isObject(payload.payment)) {
-    return payload.payment;
+/** Accepte les enveloppes documentées : { transaction }, { payment } ou { data: ... }. */
+function getTransaction(response: unknown): JsonObject | null {
+  if (!isObject(response)) return null;
+  if (isObject(response.transaction)) return response.transaction;
+  if (isObject(response.payment)) return response.payment;
+  if (isObject(response.data)) {
+    const data = response.data;
+    if (isObject(data.transaction)) return data.transaction;
+    if (isObject(data.payment)) return data.payment;
+    return data;
   }
-
-  if (isObject(payload.transaction)) {
-    return payload.transaction;
-  }
-
-  return payload;
+  return response;
 }
 
 function getString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0
-    ? value
-    : undefined;
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 async function readJson(response: Response): Promise<JsonObject> {
-  const text = await response.text();
-
+  const raw = await response.text();
+  let parsed: unknown;
   try {
-    const data: unknown = JSON.parse(text);
-
-    if (!isObject(data)) {
-      throw new Error('Réponse JSON inattendue.');
-    }
-
-    return data;
+    parsed = JSON.parse(raw);
   } catch {
-    throw new Error(
-      `Notch Pay : réponse JSON invalide (${response.status}).`,
-    );
+    const excerpt = raw.replace(/[\r\n\t]+/g, ' ').slice(0, 180);
+    throw new Error(`Notch Pay : réponse non JSON (HTTP ${response.status})${excerpt ? ` — ${excerpt}` : ''}`);
   }
+  if (!isObject(parsed)) {
+    throw new Error(`Notch Pay : format de réponse inattendu (HTTP ${response.status}).`);
+  }
+  return parsed;
 }
+
+function providerError(data: JsonObject, status: number): string {
+  const message = getString(data.message) ?? getString(data.error) ?? 'Erreur retournée par le prestataire';
+  return `Notch Pay : HTTP ${status} — ${message.slice(0, 240)}`;
+}
+
+function extractAuthorizationUrl(data: JsonObject): string | undefined {
+  const direct = getString(data.authorization_url);
+  if (direct) return direct;
+  if (isObject(data.data)) return getString(data.data.authorization_url);
+  return undefined;
+}
+
+function extractAmount(value: unknown): number | undefined {
+  const amount = typeof value === 'number' ? value
+    : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
+  return Number.isSafeInteger(amount) && amount >= 1 ? amount : undefined;
+}
+
+const statusMap: Record<string, ProviderStatus> = {
+  pending: 'pending',
+  processing: 'pending',
+  accepted: 'pending',
+  complete: 'succeeded',
+  completed: 'succeeded',
+  success: 'succeeded',
+  succeeded: 'succeeded',
+  failed: 'failed',
+  canceled: 'failed',
+  cancelled: 'failed',
+  expired: 'expired',
+};
 
 export const notchPayProvider: PaymentProvider = {
   name: 'notchpay',
@@ -64,159 +82,125 @@ export const notchPayProvider: PaymentProvider = {
   },
 
   async initiate({ reference, amountXaf, email, phone, method }) {
-    if (!email) {
-      throw new Error('Une adresse e-mail est obligatoire pour Notch Pay.');
-    }
+    if (!email?.trim()) throw new Error('Une adresse e-mail est obligatoire pour Notch Pay.');
+    if (!Number.isSafeInteger(amountXaf) || amountXaf < 1) throw new Error('Montant invalide pour Notch Pay.');
 
     const callbackUrl = new URL(config.NOTCHPAY_CALLBACK_URL!);
     callbackUrl.searchParams.set('order', reference);
 
-    const response = await fetch(`${API_BASE_URL}/payments`, {
-      method: 'POST',
-      headers: {
-        Authorization: config.NOTCHPAY_PUBLIC_KEY!,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        amount: amountXaf,
-        currency: 'XAF',
-        customer: {
-          email,
-          ...(phone ? { phone } : {}),
-        },
-        reference,
-        locked_currency: 'XAF',
-        locked_country: 'CM',
-        locked_channel: method === 'mtn_momo' ? 'cm.mtn' : 'cm.orange',
-        callback: callbackUrl.toString(),
-        description: `Paiement des votes VOTALLY - ${reference}`,
-      }),
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    const data = await readJson(response);
-    const transaction = getTransaction(data);
-
-    const authorizationUrl =
-      getString(data.authorization_url)
-      ?? (isObject(data.data)
-        ? getString(data.data.authorization_url)
-        : undefined);
-
-    // Notch Pay's hosted-checkout response may omit the transaction object at initialization.
-    // The merchant reference sent above is also the reference accepted by GET /payments/{reference}.
-    const providerReference = transaction
-      ? getString(transaction.reference) ?? getString(transaction.id)
-      : undefined;
-
-    if (!response.ok || !authorizationUrl || !providerReference) {
-      throw new Error(
-        `Notch Pay : initialisation impossible (${response.status}) - ${
-          getString(data.message) ?? 'Réponse invalide'
-        }`,
-      );
-    }
-
-    return {
-      providerReference,
-      authorizationUrl,
+    const payload = {
+      amount: amountXaf,
+      currency: 'XAF',
+      customer: { email: email.trim(), ...(phone ? { phone } : {}) },
+      reference,
+      locked_currency: 'XAF',
+      locked_country: 'CM',
+      locked_channel: method === 'mtn_momo' ? 'cm.mtn' : 'cm.orange',
+      callback: callbackUrl.toString(),
+      description: `Paiement des votes VOTALLY - ${reference}`,
     };
-  },
 
-  async verify(
-    providerReference: string,
-  ): Promise<{ status: ProviderStatus; amountXaf?: number }> {
-    const response = await fetch(
-      `${API_BASE_URL}/payments/${encodeURIComponent(providerReference)}`,
-      {
-        method: 'GET',
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/payments`, {
+        method: 'POST',
         headers: {
           Authorization: config.NOTCHPAY_PUBLIC_KEY!,
+          'Content-Type': 'application/json',
           Accept: 'application/json',
         },
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
-
-    const data = await readJson(response);
-    const transaction = getTransaction(data);
-
-    if (!response.ok || !transaction) {
-      throw new Error(
-        `Notch Pay : vérification impossible (${response.status}) - ${
-          getString(data.message) ?? 'Réponse invalide'
-        }`,
-      );
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch (error) {
+      const reason = error instanceof Error && error.name === 'TimeoutError'
+        ? 'délai de réponse dépassé'
+        : 'connexion impossible';
+      throw new Error(`Notch Pay : ${reason} lors de la création du paiement.`);
     }
 
-    const returnedReference =
-      getString(transaction.reference) ?? getString(transaction.id);
+    const data = await readJson(response);
+    if (!response.ok) throw new Error(providerError(data, response.status));
 
-    if (returnedReference !== providerReference) {
+    const authorizationUrl = extractAuthorizationUrl(data);
+    if (!authorizationUrl) {
+      throw new Error('Notch Pay : URL de paiement absente de la réponse.');
+    }
+
+    let parsedUrl: URL;
+    try { parsedUrl = new URL(authorizationUrl); }
+    catch { throw new Error('Notch Pay : URL de paiement invalide.'); }
+    if (parsedUrl.protocol !== 'https:' || parsedUrl.hostname !== 'pay.notchpay.co') {
+      throw new Error('Notch Pay : domaine de paiement inattendu, redirection refusée.');
+    }
+
+    // La documentation Notch Pay demande de vérifier GET /payments/{reference}.
+    // On conserve donc NOTRE référence métier envoyée dans POST /payments, jamais transaction.id.
+    const transaction = getTransaction(data);
+    const returnedReference = transaction ? getString(transaction.reference) : undefined;
+    if (returnedReference && returnedReference !== reference) {
+      throw new Error('Notch Pay : la référence retournée ne correspond pas à la commande VOTALLY.');
+    }
+
+    return { providerReference: reference, authorizationUrl };
+  },
+
+  async verify(providerReference: string): Promise<{ status: ProviderStatus; amountXaf?: number }> {
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/payments/${encodeURIComponent(providerReference)}`, {
+        method: 'GET',
+        headers: { Authorization: config.NOTCHPAY_PUBLIC_KEY!, Accept: 'application/json' },
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (error) {
+      const reason = error instanceof Error && error.name === 'TimeoutError'
+        ? 'délai de réponse dépassé'
+        : 'connexion impossible';
+      throw new Error(`Notch Pay : ${reason} pendant la vérification du paiement.`);
+    }
+
+    const data = await readJson(response);
+    if (!response.ok) throw new Error(providerError(data, response.status));
+
+    const transaction = getTransaction(data);
+    if (!transaction) throw new Error('Notch Pay : transaction absente de la réponse de vérification.');
+
+    const returnedReference = getString(transaction.reference);
+    if (returnedReference && returnedReference !== providerReference) {
       throw new Error('Notch Pay : référence de transaction incohérente.');
     }
 
-    if (transaction.currency !== 'XAF') {
-      throw new Error('Notch Pay : devise de transaction incorrecte.');
-    }
+    const currency = getString(transaction.currency)?.toUpperCase();
+    if (currency !== 'XAF') throw new Error('Notch Pay : devise de transaction incorrecte.');
 
-    const amount = Number(transaction.amount);
+    const amountXaf = extractAmount(transaction.amount);
+    if (amountXaf === undefined) throw new Error('Notch Pay : montant de transaction invalide.');
 
-    if (!Number.isSafeInteger(amount) || amount < 1) {
-      throw new Error('Notch Pay : montant de transaction invalide.');
-    }
+    const rawStatus = getString(transaction.status)?.toLowerCase();
+    const status = rawStatus ? statusMap[rawStatus] : undefined;
+    if (!status) throw new Error(`Notch Pay : statut inconnu (${rawStatus ?? 'absent'}).`);
 
-    const rawStatus = getString(transaction.status);
-
-    const statusMap: Record<string, ProviderStatus> = {
-      pending: 'pending',
-      processing: 'pending',
-      complete: 'succeeded',
-      failed: 'failed',
-      canceled: 'failed',
-      expired: 'expired',
-    };
-
-    const status = rawStatus ? statusMap[rawStatus.toLowerCase()] : undefined;
-
-    if (!status) {
-      throw new Error(`Notch Pay : statut inconnu (${rawStatus ?? 'absent'}).`);
-    }
-
-    return {
-      status,
-      amountXaf: amount,
-    };
+    return { status, amountXaf };
   },
 
   verifyWebhookSignature(rawBody: Buffer, signature: string | undefined): boolean {
     if (!signature || !config.NOTCHPAY_HASH_KEY) return false;
-
-    const expected = createHmac('sha256', config.NOTCHPAY_HASH_KEY)
-      .update(rawBody)
-      .digest('hex');
-
-    const actualBuffer = Buffer.from(signature, 'utf8');
+    const expected = createHmac('sha256', config.NOTCHPAY_HASH_KEY).update(rawBody).digest('hex');
+    const actual = Buffer.from(signature.trim(), 'utf8');
     const expectedBuffer = Buffer.from(expected, 'utf8');
-
-    return actualBuffer.length === expectedBuffer.length
-      && timingSafeEqual(actualBuffer, expectedBuffer);
+    return actual.length === expectedBuffer.length && timingSafeEqual(actual, expectedBuffer);
   },
 
   parseWebhook(body: any) {
-    if (
-      typeof body?.id !== 'string'
-      || typeof body?.event !== 'string'
-      || typeof body?.data?.reference !== 'string'
-    ) {
+    const eventId = getString(body?.id);
+    const providerReference = getString(body?.data?.reference)
+      ?? getString(body?.data?.transaction?.reference)
+      ?? getString(body?.transaction?.reference);
+    if (!eventId || !getString(body?.event ?? body?.type) || !providerReference) {
       throw new Error('Format de webhook Notch Pay invalide.');
     }
-
-    return {
-      eventId: body.id,
-      providerReference: body.data.reference,
-    };
+    return { eventId, providerReference };
   },
 
   estimatePayoutFee(amountXaf: number): number {
