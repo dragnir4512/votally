@@ -252,7 +252,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
 
             {mode === 'free'
               ? <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || !phone || freeTooMany} onClick={submitFree}>{t('confirmVote')}</button>
-              : <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || (needsPhone && !phone) || !email.trim() || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim()) || !quote} onClick={submitPaid}>
+              : <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || (needsPhone && !phone) || !email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || !quote} onClick={submitPaid}>
                   {quote ? t('pay', { amount: formatXaf(quote.totalXaf, lang) }) : t('computing')}</button>}
           </div>
         )}
