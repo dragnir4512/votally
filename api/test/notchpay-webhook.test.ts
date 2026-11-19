@@ -131,7 +131,7 @@ describe('Notch Pay — initialisation du checkout hébergé', () => {
       status: 'Accepted',
       message: 'Payment initiated',
       authorization_url: 'https://pay.notchpay.co/test-session',
-      transaction: { reference: 'VOTALLY-ORDER-001', id: 'internal-id-987' },
+      transaction: { reference: 'trx.notchpay-001', id: 'internal-id-987' },
     }), { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -142,7 +142,7 @@ describe('Notch Pay — initialisation du checkout hébergé', () => {
       phone: '+237699000000',
       email: 'buyer@example.com',
     })).resolves.toEqual({
-      providerReference: 'VOTALLY-ORDER-001',
+      providerReference: 'trx.notchpay-001',
       authorizationUrl: 'https://pay.notchpay.co/test-session',
     });
 
@@ -157,7 +157,7 @@ describe('Notch Pay — initialisation du checkout hébergé', () => {
     expect(body.customer.email).toBe('buyer@example.com');
   });
 
-  it('accepte une enveloppe data.authorization_url sans transaction imbriquée', async () => {
+  it('refuse une initialisation sans référence de transaction vérifiable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
       status: 'Accepted',
       data: { authorization_url: 'https://pay.notchpay.co/session-2' },
@@ -169,7 +169,7 @@ describe('Notch Pay — initialisation du checkout hébergé', () => {
       method: 'orange_money',
       phone: '+237699000000',
       email: 'buyer@example.com',
-    })).resolves.toMatchObject({ providerReference: 'VOTALLY-ORDER-002' });
+    })).rejects.toThrow('référence de transaction absente');
   });
 
   it('refuse une URL de paiement qui ne vient pas du domaine sécurisé Notch Pay', async () => {
