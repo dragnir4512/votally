@@ -52,7 +52,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
   }, [onClose]);
 
   // Une nouvelle saisie = une nouvelle clé d'idempotence (un rejeu réseau garde la même clé)
-  useEffect(() => { idem.current = uuid(); }, [choices, method, mode, phone]);
+  useEffect(() => { idem.current = uuid(); }, [choices, method, mode, phone, email]);
 
   // Devis (prix + frais) AVANT paiement
   useEffect(() => {
@@ -140,7 +140,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
             <div className="ko">!</div>
             <h2>{t('failedTitle')}</h2>
             <p className="muted">{t('failedBody')}</p>
-            <button className="btn btn-primary block" type="button" onClick={() => { setStep('form'); setOrder(null); setError(null); }}>{t('retry')}</button>
+            <button className="btn btn-primary block" type="button" onClick={() => { idem.current = uuid(); setStep('form'); setOrder(null); setError(null); }}>{t('retry')}</button>
           </div>
         )}
 
@@ -252,7 +252,7 @@ export default function VoteSheet({ contest, packs, selected, lang, tt, shareUrl
 
             {mode === 'free'
               ? <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || !phone || freeTooMany} onClick={submitFree}>{t('confirmVote')}</button>
-              : <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || (needsPhone && !phone) || !quote} onClick={submitPaid}>
+              : <button className="btn btn-primary block" type="button" disabled={busy || !phoneOk || (needsPhone && !phone) || !email.trim() || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email.trim()) || !quote} onClick={submitPaid}>
                   {quote ? t('pay', { amount: formatXaf(quote.totalXaf, lang) }) : t('computing')}</button>}
           </div>
         )}
