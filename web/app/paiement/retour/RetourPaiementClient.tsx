@@ -15,13 +15,14 @@ type Order = {
 
 export default function RetourPaiementClient() {
   const params = useSearchParams();
-  const reference = params.get('order');
+  const reference = params.get('order') ?? params.get('reference');
 
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const [checking, setChecking] = useState(false);
   const busy = useRef(false);
+  const lastProviderCheck = useRef(0);
 
   useEffect(() => {
     if (!reference) return;
@@ -34,30 +35,40 @@ export default function RetourPaiementClient() {
       busy.current = true;
 
       try {
-        const result = await api<{ order: Order }>(
+        let result = await api<{ order: Order }>(
           `/public/orders/${encodeURIComponent(reference)}`
         );
+
+        // Le webhook peut arriver en retard ou être indisponible :
+        // tant que la commande est pending, on demande aussi une vérification serveur Notch Pay.
+        if (result.order.status === 'pending' && Date.now() - lastProviderCheck.current >= 15_000) {
+          lastProviderCheck.current = Date.now();
+          try {
+            result = await api<{ order: Order }>(
+              `/public/orders/${encodeURIComponent(reference)}/verify`,
+              { method: 'POST' }
+            );
+          } catch {
+            // Une panne temporaire du prestataire ne doit pas faire disparaître le suivi.
+          }
+        }
 
         if (active) {
           setOrder(result.order);
           setError(false);
-
-          if (['confirmed', 'failed', 'cancelled', 'refunded'].includes(result.order.status)) {
+          if (['confirmed', 'failed', 'cancelled', 'refunded', 'expired'].includes(result.order.status)) {
             clearInterval(timer);
           }
         }
       } catch {
-        if (active) {
-          setError(true);
-          clearInterval(timer);
-        }
+        if (active) setError(true);
       } finally {
         busy.current = false;
       }
     };
 
-    checkPayment();
-    timer = setInterval(checkPayment, 3000);
+    void checkPayment();
+    timer = setInterval(() => { void checkPayment(); }, 3000);
 
     return () => {
       active = false;
