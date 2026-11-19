@@ -120,3 +120,69 @@ describe('Notch Pay — vérification serveur du paiement', () => {
       .rejects.toThrow('référence de transaction incohérente');
   });
 });
+
+
+
+describe('Notch Pay — initialisation du checkout hébergé', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('envoie le montant XAF, le canal demandé et conserve la référence VOTALLY', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: 'Accepted',
+      message: 'Payment initiated',
+      authorization_url: 'https://pay.notchpay.co/test-session',
+      transaction: { reference: 'trx.notchpay-001', id: 'internal-id-987' },
+    }), { status: 201 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(notchPayProvider.initiate({
+      reference: 'VOTALLY-ORDER-001',
+      amountXaf: 2500,
+      method: 'mtn_momo',
+      phone: '+237699000000',
+      email: 'buyer@example.com',
+    })).resolves.toEqual({
+      providerReference: 'trx.notchpay-001',
+      authorizationUrl: 'https://pay.notchpay.co/test-session',
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.notchpay.co/payments');
+    expect(init.method).toBe('POST');
+    const body = JSON.parse(String(init.body));
+    expect(body.reference).toBe('VOTALLY-ORDER-001');
+    expect(body.amount).toBe(2500);
+    expect(body.currency).toBe('XAF');
+    expect(body.locked_channel).toBe('cm.mtn');
+    expect(body.customer.email).toBe('buyer@example.com');
+  });
+
+  it('refuse une initialisation sans référence de transaction vérifiable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: 'Accepted',
+      data: { authorization_url: 'https://pay.notchpay.co/session-2' },
+    }), { status: 201 })));
+
+    await expect(notchPayProvider.initiate({
+      reference: 'VOTALLY-ORDER-002',
+      amountXaf: 1000,
+      method: 'orange_money',
+      phone: '+237699000000',
+      email: 'buyer@example.com',
+    })).rejects.toThrow('référence de transaction absente');
+  });
+
+  it('refuse une URL de paiement qui ne vient pas du domaine sécurisé Notch Pay', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      authorization_url: 'https://phishing.example/checkout',
+    }), { status: 201 })));
+
+    await expect(notchPayProvider.initiate({
+      reference: 'VOTALLY-ORDER-003',
+      amountXaf: 1000,
+      method: 'mtn_momo',
+      email: 'buyer@example.com',
+    })).rejects.toThrow('domaine de paiement inattendu');
+  });
+});
+
